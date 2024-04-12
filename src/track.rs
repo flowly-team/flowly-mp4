@@ -89,7 +89,7 @@ impl From<Vp9Config> for TrackConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mp4Track {
     pub trak: TrakBox,
     pub trafs: Vec<TrafBox>,
@@ -114,8 +114,8 @@ impl Mp4Track {
         self.trak.tkhd.track_id
     }
 
-    pub fn track_type(&self) -> Result<TrackType> {
-        TrackType::try_from(&self.trak.mdia.hdlr.handler_type)
+    pub fn track_type(&self) -> TrackType {
+        TrackType::from(&self.trak.mdia.hdlr.handler_type)
     }
 
     pub fn media_type(&self) -> Result<MediaType> {
@@ -130,7 +130,7 @@ impl Mp4Track {
         } else if self.trak.mdia.minf.stbl.stsd.tx3g.is_some() {
             Ok(MediaType::TTXT)
         } else {
-            Err(Error::InvalidData("unsupported media type"))
+            Err(BoxError::InvalidData("unsupported media type"))
         }
     }
 
@@ -146,7 +146,7 @@ impl Mp4Track {
         } else if self.trak.mdia.minf.stbl.stsd.tx3g.is_some() {
             Ok(FourCC::from(BoxType::Tx3gBox))
         } else {
-            Err(Error::InvalidData("unsupported sample entry box"))
+            Err(BoxError::InvalidData("unsupported sample entry box"))
         }
     }
 
@@ -180,10 +180,16 @@ impl Mp4Track {
             if let Some(ref esds) = mp4a.esds {
                 SampleFreqIndex::try_from(esds.es_desc.dec_config.dec_specific.freq_index)
             } else {
-                Err(Error::BoxInStblNotFound(self.track_id(), BoxType::EsdsBox))
+                Err(BoxError::BoxInStblNotFound(
+                    self.track_id(),
+                    BoxType::EsdsBox,
+                ))
             }
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Mp4aBox))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Mp4aBox,
+            ))
         }
     }
 
@@ -192,10 +198,16 @@ impl Mp4Track {
             if let Some(ref esds) = mp4a.esds {
                 ChannelConfig::try_from(esds.es_desc.dec_config.dec_specific.chan_conf)
             } else {
-                Err(Error::BoxInStblNotFound(self.track_id(), BoxType::EsdsBox))
+                Err(BoxError::BoxInStblNotFound(
+                    self.track_id(),
+                    BoxType::EsdsBox,
+                ))
             }
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Mp4aBox))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Mp4aBox,
+            ))
         }
     }
 
@@ -255,37 +267,46 @@ impl Mp4Track {
                 avc1.avcc.profile_compatibility,
             ))
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Avc1Box))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Avc1Box,
+            ))
         }
     }
 
     pub fn sequence_parameter_set(&self) -> Result<&[u8]> {
         if let Some(ref avc1) = self.trak.mdia.minf.stbl.stsd.avc1 {
-            match avc1.avcc.sequence_parameter_sets.get(0) {
+            match avc1.avcc.sequence_parameter_sets.first() {
                 Some(nal) => Ok(nal.bytes.as_ref()),
-                None => Err(Error::EntryInStblNotFound(
+                None => Err(BoxError::EntryInStblNotFound(
                     self.track_id(),
                     BoxType::AvcCBox,
                     0,
                 )),
             }
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Avc1Box))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Avc1Box,
+            ))
         }
     }
 
     pub fn picture_parameter_set(&self) -> Result<&[u8]> {
         if let Some(ref avc1) = self.trak.mdia.minf.stbl.stsd.avc1 {
-            match avc1.avcc.picture_parameter_sets.get(0) {
+            match avc1.avcc.picture_parameter_sets.first() {
                 Some(nal) => Ok(nal.bytes.as_ref()),
-                None => Err(Error::EntryInStblNotFound(
+                None => Err(BoxError::EntryInStblNotFound(
                     self.track_id(),
                     BoxType::AvcCBox,
                     0,
                 )),
             }
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Avc1Box))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Avc1Box,
+            ))
         }
     }
 
@@ -294,21 +315,27 @@ impl Mp4Track {
             if let Some(ref esds) = mp4a.esds {
                 AudioObjectType::try_from(esds.es_desc.dec_config.dec_specific.profile)
             } else {
-                Err(Error::BoxInStblNotFound(self.track_id(), BoxType::EsdsBox))
+                Err(BoxError::BoxInStblNotFound(
+                    self.track_id(),
+                    BoxType::EsdsBox,
+                ))
             }
         } else {
-            Err(Error::BoxInStblNotFound(self.track_id(), BoxType::Mp4aBox))
+            Err(BoxError::BoxInStblNotFound(
+                self.track_id(),
+                BoxType::Mp4aBox,
+            ))
         }
     }
 
     fn stsc_index(&self, sample_id: u32) -> Result<usize> {
         if self.trak.mdia.minf.stbl.stsc.entries.is_empty() {
-            return Err(Error::InvalidData("no stsc entries"));
+            return Err(BoxError::InvalidData("no stsc entries"));
         }
         for (i, entry) in self.trak.mdia.minf.stbl.stsc.entries.iter().enumerate() {
             if sample_id < entry.first_sample {
                 return if i == 0 {
-                    Err(Error::InvalidData("sample not found"))
+                    Err(BoxError::InvalidData("sample not found"))
                 } else {
                     Ok(i - 1)
                 };
@@ -319,13 +346,13 @@ impl Mp4Track {
 
     fn chunk_offset(&self, chunk_id: u32) -> Result<u64> {
         if self.trak.mdia.minf.stbl.stco.is_none() && self.trak.mdia.minf.stbl.co64.is_none() {
-            return Err(Error::InvalidData("must have either stco or co64 boxes"));
+            return Err(BoxError::InvalidData("must have either stco or co64 boxes"));
         }
         if let Some(ref stco) = self.trak.mdia.minf.stbl.stco {
             if let Some(offset) = stco.entries.get(chunk_id as usize - 1) {
                 return Ok(*offset as u64);
             } else {
-                return Err(Error::EntryInStblNotFound(
+                return Err(BoxError::EntryInStblNotFound(
                     self.track_id(),
                     BoxType::StcoBox,
                     chunk_id,
@@ -335,14 +362,14 @@ impl Mp4Track {
             if let Some(offset) = co64.entries.get(chunk_id as usize - 1) {
                 return Ok(*offset);
             } else {
-                return Err(Error::EntryInStblNotFound(
+                return Err(BoxError::EntryInStblNotFound(
                     self.track_id(),
                     BoxType::Co64Box,
                     chunk_id,
                 ));
             }
         }
-        Err(Error::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box))
+        Err(BoxError::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box))
     }
 
     fn ctts_index(&self, sample_id: u32) -> Result<(usize, u32)> {
@@ -352,7 +379,7 @@ impl Mp4Track {
             let next_sample_count =
                 sample_count
                     .checked_add(entry.sample_count)
-                    .ok_or(Error::InvalidData(
+                    .ok_or(BoxError::InvalidData(
                         "attempt to sum ctts entries sample_count with overflow",
                     ))?;
             if sample_id < next_sample_count {
@@ -361,7 +388,7 @@ impl Mp4Track {
             sample_count = next_sample_count;
         }
 
-        Err(Error::EntryInStblNotFound(
+        Err(BoxError::EntryInStblNotFound(
             self.track_id(),
             BoxType::CttsBox,
             sample_id,
@@ -386,7 +413,7 @@ impl Mp4Track {
         None
     }
 
-    fn sample_size(&self, sample_id: u32) -> Result<u32> {
+    pub(crate) fn sample_size(&self, sample_id: u32) -> Result<u32> {
         if !self.trafs.is_empty() {
             if let Some((traf_idx, sample_idx)) = self.find_traf_idx_and_sample_idx(sample_id) {
                 if let Some(size) = self.trafs[traf_idx]
@@ -398,14 +425,17 @@ impl Mp4Track {
                 {
                     Ok(*size)
                 } else {
-                    Err(Error::EntryInTrunNotFound(
+                    Err(BoxError::EntryInTrunNotFound(
                         self.track_id(),
                         BoxType::TrunBox,
                         sample_id,
                     ))
                 }
             } else {
-                Err(Error::BoxInTrafNotFound(self.track_id(), BoxType::TrafBox))
+                Err(BoxError::BoxInTrafNotFound(
+                    self.track_id(),
+                    BoxType::TrafBox,
+                ))
             }
         } else {
             let stsz = &self.trak.mdia.minf.stbl.stsz;
@@ -415,7 +445,7 @@ impl Mp4Track {
             if let Some(size) = stsz.sample_sizes.get(sample_id as usize - 1) {
                 Ok(*size)
             } else {
-                Err(Error::EntryInStblNotFound(
+                Err(BoxError::EntryInStblNotFound(
                     self.track_id(),
                     BoxType::StszBox,
                     sample_id,
@@ -451,7 +481,9 @@ impl Mp4Track {
                     .and_then(|trun| trun.data_offset)
                 {
                     sample_offset = sample_offset.checked_add_signed(data_offset as i64).ok_or(
-                        Error::InvalidData("attempt to calculate trun sample offset with overflow"),
+                        BoxError::InvalidData(
+                            "attempt to calculate trun sample offset with overflow",
+                        ),
                     )?;
                 }
 
@@ -459,14 +491,17 @@ impl Mp4Track {
                 for i in first_sample_in_trun..sample_id {
                     sample_offset = sample_offset
                         .checked_add(self.sample_size(i)? as u64)
-                        .ok_or(Error::InvalidData(
+                        .ok_or(BoxError::InvalidData(
                             "attempt to calculate trun entry sample offset with overflow",
                         ))?;
                 }
 
                 Ok(sample_offset)
             } else {
-                Err(Error::BoxInTrafNotFound(self.track_id(), BoxType::TrafBox))
+                Err(BoxError::BoxInTrafNotFound(
+                    self.track_id(),
+                    BoxType::TrafBox,
+                ))
             }
         } else {
             let stsc_index = self.stsc_index(sample_id)?;
@@ -482,7 +517,7 @@ impl Mp4Track {
                 .checked_sub(first_sample)
                 .map(|n| n / samples_per_chunk)
                 .and_then(|n| n.checked_add(first_chunk))
-                .ok_or(Error::InvalidData(
+                .ok_or(BoxError::InvalidData(
                     "attempt to calculate stsc chunk_id with overflow",
                 ))?;
 
@@ -499,7 +534,7 @@ impl Mp4Track {
         }
     }
 
-    fn sample_time(&self, sample_id: u32) -> Result<(u64, u32)> {
+    pub(crate) fn sample_time(&self, sample_id: u32) -> Result<(u64, u32)> {
         if !self.trafs.is_empty() {
             if let Some((traf_idx, sample_idx)) = self.find_traf_idx_and_sample_idx(sample_id) {
                 let traf = &self.trafs[traf_idx];
@@ -514,7 +549,9 @@ impl Mp4Track {
                         let mut start_offset = 0u64;
                         for duration in &trun.sample_durations[..sample_idx] {
                             start_offset = start_offset.checked_add(*duration as u64).ok_or(
-                                Error::InvalidData("attempt to sum sample durations with overflow"),
+                                BoxError::InvalidData(
+                                    "attempt to sum sample durations with overflow",
+                                ),
                             )?;
                         }
                         let duration = trun.sample_durations[sample_idx];
@@ -546,7 +583,7 @@ impl Mp4Track {
                 let new_sample_count =
                     sample_count
                         .checked_add(entry.sample_count)
-                        .ok_or(Error::InvalidData(
+                        .ok_or(BoxError::InvalidData(
                             "attempt to sum stts entries sample_count with overflow",
                         ))?;
                 if sample_id < new_sample_count {
@@ -559,7 +596,7 @@ impl Mp4Track {
                 elapsed += entry.sample_count as u64 * entry.sample_delta as u64;
             }
 
-            Err(Error::EntryInStblNotFound(
+            Err(BoxError::EntryInStblNotFound(
                 self.track_id(),
                 BoxType::SttsBox,
                 sample_id,
@@ -567,7 +604,7 @@ impl Mp4Track {
         }
     }
 
-    fn sample_rendering_offset(&self, sample_id: u32) -> i32 {
+    pub(crate) fn sample_rendering_offset(&self, sample_id: u32) -> i32 {
         if !self.trafs.is_empty() {
             if let Some((traf_idx, sample_idx)) = self.find_traf_idx_and_sample_idx(sample_id) {
                 if let Some(cts) = self.trafs[traf_idx]
@@ -587,7 +624,7 @@ impl Mp4Track {
         0
     }
 
-    fn is_sync_sample(&self, sample_id: u32) -> bool {
+    pub(crate) fn is_sync_sample(&self, sample_id: u32) -> bool {
         if !self.trafs.is_empty() {
             if let Some((_, sample_idx)) = self.find_traf_idx_and_sample_idx(sample_id) {
                 return sample_idx == 0;
@@ -610,12 +647,13 @@ impl Mp4Track {
     ) -> Result<Option<Mp4Sample>> {
         let sample_offset = match self.sample_offset(sample_id) {
             Ok(offset) => offset,
-            Err(Error::EntryInStblNotFound(_, _, _)) => return Ok(None),
+            Err(BoxError::EntryInStblNotFound(_, _, _)) => return Ok(None),
             Err(err) => return Err(err),
         };
+
         let sample_size = match self.sample_size(sample_id) {
             Ok(size) => size,
-            Err(Error::EntryInStblNotFound(_, _, _)) => return Ok(None),
+            Err(BoxError::EntryInStblNotFound(_, _, _)) => return Ok(None),
             Err(err) => return Err(err),
         };
 

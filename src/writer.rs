@@ -100,13 +100,13 @@ impl<W: Write + Seek> Mp4Writer<W> {
 
     pub fn write_sample(&mut self, track_id: u32, sample: &Mp4Sample) -> Result<()> {
         if track_id == 0 {
-            return Err(Error::TrakNotFound(track_id));
+            return Err(BoxError::TrakNotFound(track_id));
         }
 
         let track_dur = if let Some(ref mut track) = self.tracks.get_mut(track_id as usize - 1) {
             track.write_sample(&mut self.writer, sample, self.timescale)?
         } else {
-            return Err(Error::TrakNotFound(track_id));
+            return Err(BoxError::TrakNotFound(track_id));
         };
 
         self.update_durations(track_dur);

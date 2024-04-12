@@ -1,5 +1,3 @@
-use std::io::{Read, Seek};
-
 use serde::Serialize;
 
 use crate::mp4box::hdlr::HdlrBox;
@@ -26,6 +24,7 @@ pub enum MetaBox {
 }
 
 const MDIR: FourCC = FourCC { value: *b"mdir" };
+const MDTA: FourCC = FourCC { value: *b"mdta" };
 
 impl MetaBox {
     pub fn get_type(&self) -> BoxType {
@@ -54,9 +53,7 @@ impl MetaBox {
 }
 
 impl Mp4Box for MetaBox {
-    fn box_type(&self) -> BoxType {
-        self.get_type()
-    }
+    const TYPE: BoxType = BoxType::MetaBox;
 
     fn box_size(&self) -> u64 {
         self.get_size()
@@ -86,115 +83,41 @@ impl Default for MetaBox {
     }
 }
 
-impl<R: Read + Seek> ReadBox<&mut R> for MetaBox {
-    fn read_box(reader: &mut R, size: u64) -> Result<Self> {
-        let start = box_start(reader)?;
-
-        let extended_header = reader.read_u32::<BigEndian>()?;
-        if extended_header != 0 {
-            // ISO mp4 requires this header (version & flags) to be 0. Some
-            // files skip the extended header and directly start the hdlr box.
-            let possible_hdlr = BoxType::from(reader.read_u32::<BigEndian>()?);
-            if possible_hdlr == BoxType::HdlrBox {
-                // This file skipped the extended header! Go back to start.
-                reader.seek(SeekFrom::Current(-8))?;
-            } else {
-                // Looks like we actually have a bad version number or flags.
-                let v = (extended_header >> 24) as u8;
-                return Err(Error::UnsupportedBoxVersion(BoxType::MetaBox, v));
-            }
+impl BlockReader for MetaBox {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+        let extended_header = reader.peek_u32();
+        if extended_header == 0 {
+            reader.skip(4);
         }
-
-        let mut current = reader.stream_position()?;
-        let end = start + size;
-
-        let content_start = current;
 
         // find the hdlr box
-        let mut hdlr = None;
-        while current < end {
-            // Get box header.
-            let header = BoxHeader::read(reader)?;
-            let BoxHeader { name, size: s } = header;
+        let hdlr = reader.find_box::<HdlrBox>()?;
 
-            match name {
-                BoxType::HdlrBox => {
-                    hdlr = Some(HdlrBox::read_box(reader, s)?);
-                }
-                _ => {
-                    // XXX warn!()
-                    skip_box(reader, s)?;
-                }
-            }
-
-            current = reader.stream_position()?;
-        }
-
-        let Some(hdlr) = hdlr else {
-            return Err(Error::BoxNotFound(BoxType::HdlrBox));
-        };
-
-        // rewind and handle the other boxes
-        reader.seek(SeekFrom::Start(content_start))?;
-        current = reader.stream_position()?;
-
-        let mut ilst = None;
-
-        match hdlr.handler_type {
-            MDIR => {
-                while current < end {
-                    // Get box header.
-                    let header = BoxHeader::read(reader)?;
-                    let BoxHeader { name, size: s } = header;
-
-                    match name {
-                        BoxType::IlstBox => {
-                            ilst = Some(IlstBox::read_box(reader, s)?);
-                        }
-                        _ => {
-                            // XXX warn!()
-                            skip_box(reader, s)?;
-                        }
-                    }
-
-                    current = reader.stream_position()?;
-                }
-
-                Ok(MetaBox::Mdir { ilst })
-            }
+        Ok(match hdlr.handler_type {
+            MDIR => MetaBox::Mdir {
+                ilst: reader.try_find_box::<IlstBox>()?,
+            },
             _ => {
                 let mut data = Vec::new();
 
-                while current < end {
-                    // Get box header.
-                    let header = BoxHeader::read(reader)?;
-                    let BoxHeader { name, size: s } = header;
-
-                    match name {
-                        BoxType::HdlrBox => {
-                            skip_box(reader, s)?;
-                        }
-                        _ => {
-                            let mut box_data = vec![0; (s - HEADER_SIZE) as usize];
-                            reader.read_exact(&mut box_data)?;
-
-                            data.push((name, box_data));
-                        }
-                    }
-
-                    current = reader.stream_position()?;
+                while let Some(mut bx) = reader.get_box()? {
+                    data.push((bx.kind, bx.inner.collect_remaining()))
                 }
 
-                Ok(MetaBox::Unknown { hdlr, data })
+                MetaBox::Unknown { hdlr, data }
             }
-        }
+        })
+    }
+
+    fn size_hint() -> usize {
+        8
     }
 }
 
 impl<W: Write> WriteBox<&mut W> for MetaBox {
     fn write_box(&self, writer: &mut W) -> Result<u64> {
         let size = self.box_size();
-        BoxHeader::new(self.box_type(), size).write(writer)?;
+        BoxHeader::new(Self::TYPE, size).write(writer)?;
 
         write_box_header_ext(writer, 0, 0)?;
 
@@ -228,7 +151,6 @@ impl<W: Write> WriteBox<&mut W> for MetaBox {
 mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
-    use std::io::Cursor;
 
     #[test]
     fn test_meta_mdir_empty() {
@@ -238,12 +160,12 @@ mod tests {
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
-        let mut reader = Cursor::new(&buf);
-        let header = BoxHeader::read(&mut reader).unwrap();
-        assert_eq!(header.name, BoxType::MetaBox);
+        let mut reader = buf.as_slice();
+        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 
-        let dst_box = MetaBox::read_box(&mut reader, header.size).unwrap();
+        let dst_box = MetaBox::read_block(&mut reader).unwrap();
         assert_eq!(dst_box, src_box);
     }
 
@@ -257,23 +179,24 @@ mod tests {
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
-        let mut reader = Cursor::new(&buf);
-        let header = BoxHeader::read(&mut reader).unwrap();
-        assert_eq!(header.name, BoxType::MetaBox);
+        let mut reader = buf.as_slice();
+        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 
-        let dst_box = MetaBox::read_box(&mut reader, header.size).unwrap();
+        let dst_box = MetaBox::read_block(&mut reader).unwrap();
         assert_eq!(dst_box, src_box);
     }
 
     #[test]
     fn test_meta_hdrl_non_first() {
         let data = b"\x00\x00\x00\x7fmeta\x00\x00\x00\x00\x00\x00\x00Qilst\x00\x00\x00I\xa9too\x00\x00\x00Adata\x00\x00\x00\x01\x00\x00\x00\x00TMPGEnc Video Mastering Works 7 Version 7.0.15.17\x00\x00\x00\"hdlr\x00\x00\x00\x00\x00\x00\x00\x00mdirappl\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-        let mut reader = Cursor::new(data);
-        let header = BoxHeader::read(&mut reader).unwrap();
-        assert_eq!(header.name, BoxType::MetaBox);
 
-        let meta_box = MetaBox::read_box(&mut reader, header.size).unwrap();
+        let mut reader = data.as_slice();
+        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        assert_eq!(header.kind, BoxType::MetaBox);
+
+        let meta_box = MetaBox::read_block(&mut reader).unwrap();
 
         // this contains \xa9too box in the ilst
         // it designates the tool that created the file, but is not yet supported by this crate
@@ -301,12 +224,12 @@ mod tests {
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
-        let mut reader = Cursor::new(&buf);
-        let header = BoxHeader::read(&mut reader).unwrap();
-        assert_eq!(header.name, BoxType::MetaBox);
+        let mut reader = buf.as_slice();
+        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 
-        let dst_box = MetaBox::read_box(&mut reader, header.size).unwrap();
+        let dst_box = MetaBox::read_block(&mut reader).unwrap();
         assert_eq!(dst_box, src_box);
     }
 }

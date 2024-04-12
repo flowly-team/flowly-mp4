@@ -65,13 +65,11 @@
 //! [examples]: https://github.com/alfg/mp4-rust/tree/master/examples
 #![doc(html_root_url = "https://docs.rs/mp4/*")]
 
-use std::fs::File;
-use std::io::BufReader;
-
 mod error;
+use error::BoxError;
 pub use error::Error;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, BoxError>;
 
 mod types;
 pub use types::*;
@@ -79,18 +77,23 @@ pub use types::*;
 mod mp4box;
 pub use mp4box::*;
 
+mod file;
+// mod header;
+mod stream;
+
 mod track;
 pub use track::{Mp4Track, TrackConfig};
 
-mod reader;
-pub use reader::{Mp4Header, Mp4Reader};
+pub use file::*;
+// mod async_reader;
+// pub use async_reader::{AsyncMp4Reader, Mp4Header};
 
 mod writer;
 pub use writer::{Mp4Config, Mp4Writer};
 
-pub fn read_mp4(f: File) -> Result<Mp4Reader<BufReader<File>>> {
-    let size = f.metadata()?.len();
-    let reader = BufReader::new(f);
-    let mp4 = reader::Mp4Reader::read_header(reader, size)?;
-    Ok(mp4)
-}
+// pub async fn read_mp4(f: File) -> Result<Mp4Reader<BufReader<File>>> {
+//     let size = f.metadata()?.len();
+//     let reader = BufReader::new(f);
+//     let mp4 = async_reader::Mp4AsyncReader::read_header(reader, size)?;
+//     Ok(mp4)
+// }

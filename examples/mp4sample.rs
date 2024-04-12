@@ -1,12 +1,13 @@
-use std::env;
-use std::fs::File;
 use std::io::prelude::*;
-use std::io::{self, BufReader};
 use std::path::Path;
+use std::{env, io};
 
-use mp4::Result;
+use mp4::{MemoryStorageError, TrackType};
+use tokio::fs::File;
+use tokio::io::BufReader;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
@@ -14,37 +15,45 @@ fn main() {
         std::process::exit(1);
     }
 
-    if let Err(err) = samples(&args[1]) {
+    if let Err(err) = samples(&args[1]).await {
         let _ = writeln!(io::stderr(), "{}", err);
     }
 }
 
-fn samples<P: AsRef<Path>>(filename: &P) -> Result<()> {
-    let f = File::open(filename)?;
-    let size = f.metadata()?.len();
-    let reader = BufReader::new(f);
+async fn samples<P: AsRef<Path>>(filename: &P) -> Result<(), mp4::Error<MemoryStorageError>> {
+    let f = File::open(filename).await?;
+    let mut reader = BufReader::new(f);
 
-    let mut mp4 = mp4::Mp4Reader::read_header(reader, size)?;
+    let mut mp4_file = mp4::Mp4File::new(&mut reader);
+    println!("streaming possible: {}", mp4_file.read_header().await?);
 
-    for track_id in mp4.tracks().keys().copied().collect::<Vec<u32>>() {
-        let sample_count = mp4.sample_count(track_id).unwrap();
+    let mut keys = mp4_file
+        .tracks
+        .iter()
+        .filter(|&(_, v)| v.track_type() == TrackType::Video)
+        .map(|(k, _)| *k);
 
-        for sample_idx in 0..sample_count {
-            let sample_id = sample_idx + 1;
-            let sample = mp4.read_sample(track_id, sample_id);
+    let track_id = keys.next().unwrap();
+    let track = mp4_file.tracks.get(&track_id).unwrap();
 
-            if let Some(ref samp) = sample.unwrap() {
-                println!(
-                    "[{}] start_time={} duration={} rendering_offset={} size={} is_sync={}",
-                    sample_id,
-                    samp.start_time,
-                    samp.duration,
-                    samp.rendering_offset,
-                    samp.bytes.len(),
-                    samp.is_sync,
-                );
-            }
-        }
+    for (idx, samp) in track.samples.iter().enumerate() {
+        let data = mp4_file
+            .read_sample_data(track_id, idx)
+            .await?
+            .map(|x| x.slice(0..32));
+
+        println!(
+            "[{} {} {}] {} - <{}> {} +{} {:?}",
+            idx + 1,
+            samp.chunk_id,
+            samp.offset,
+            samp.is_sync,
+            samp.size,
+            samp.start_time,
+            samp.rendering_offset,
+            data.as_deref()
+        );
     }
+
     Ok(())
 }
