@@ -1,6 +1,4 @@
-use mp4::{
-    AudioObjectType, AvcProfile, ChannelConfig, MediaType, Mp4Reader, SampleFreqIndex, TrackType,
-};
+use mp4::{AudioObjectType, AvcProfile, ChannelConfig, MediaType, SampleFreqIndex, TrackType};
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::time::Duration;
@@ -155,9 +153,11 @@ fn test_read_extended_audio_object_type() {
 fn get_reader(path: &str) -> Mp4Reader<BufReader<File>> {
     let f = File::open(path).unwrap();
     let f_size = f.metadata().unwrap().len();
-    let reader = BufReader::new(f);
+    let mut reader = BufReader::new(f);
 
-    mp4::Mp4Reader::read_header(reader, f_size).unwrap()
+    let mp4_file = mp4::Mp4File::new(&mut reader);
+
+    mp4::Mp4File::read_header(reader, f_size).unwrap()
 }
 
 #[test]

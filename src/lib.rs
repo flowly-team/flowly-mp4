@@ -65,7 +65,7 @@
 //! [examples]: https://github.com/alfg/mp4-rust/tree/master/examples
 #![doc(html_root_url = "https://docs.rs/mp4/*")]
 
-mod error;
+pub mod error;
 use error::BoxError;
 pub use error::Error;
 
@@ -78,18 +78,13 @@ mod mp4box;
 pub use mp4box::*;
 
 mod file;
-// mod header;
-mod stream;
 
 mod track;
-pub use track::{Mp4Track, TrackConfig};
+pub use track::Mp4Track;
 
 pub use file::*;
 // mod async_reader;
 // pub use async_reader::{AsyncMp4Reader, Mp4Header};
-
-mod writer;
-pub use writer::{Mp4Config, Mp4Writer};
 
 // pub async fn read_mp4(f: File) -> Result<Mp4Reader<BufReader<File>>> {
 //     let size = f.metadata()?.len();
