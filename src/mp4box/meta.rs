@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Serialize;
 
 use crate::mp4box::hdlr::HdlrBox;
@@ -90,22 +92,29 @@ impl BlockReader for MetaBox {
             reader.skip(4);
         }
 
+        let mut boxes = HashMap::new();
+        while let Some(mut bx) = reader.get_box()? {
+            boxes.insert(bx.kind, bx.inner.collect_remaining());
+        }
+
         // find the hdlr box
-        let hdlr = reader.find_box::<HdlrBox>()?;
+        let hdlr = HdlrBox::read_block(&mut boxes.remove(&BoxType::HdlrBox).unwrap().as_slice())?;
 
         Ok(match hdlr.handler_type {
             MDIR => MetaBox::Mdir {
-                ilst: reader.try_find_box::<IlstBox>()?,
+                ilst: if let Some(inner) = boxes.remove(&BoxType::IlstBox) {
+                    Some(IlstBox::read_block(&mut inner.as_slice())?)
+                } else {
+                    None
+                },
             },
-            _ => {
-                let mut data = Vec::new();
-
-                while let Some(mut bx) = reader.get_box()? {
-                    data.push((bx.kind, bx.inner.collect_remaining()))
-                }
-
-                MetaBox::Unknown { hdlr, data }
-            }
+            _ => MetaBox::Unknown {
+                hdlr: hdlr.clone(),
+                data: boxes
+                    .into_iter()
+                    .map(|(k, v)| (k, v))
+                    .collect::<Vec<(BoxType, Vec<u8>)>>(),
+            },
         })
     }
 
@@ -152,8 +161,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_meta_mdir_empty() {
+    #[tokio::test]
+    async fn test_meta_mdir_empty() {
         let src_box = MetaBox::Mdir { ilst: None };
 
         let mut buf = Vec::new();
@@ -161,7 +170,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 
@@ -169,8 +178,8 @@ mod tests {
         assert_eq!(dst_box, src_box);
     }
 
-    #[test]
-    fn test_meta_mdir() {
+    #[tokio::test]
+    async fn test_meta_mdir() {
         let src_box = MetaBox::Mdir {
             ilst: Some(IlstBox::default()),
         };
@@ -180,7 +189,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 
@@ -188,12 +197,13 @@ mod tests {
         assert_eq!(dst_box, src_box);
     }
 
-    #[test]
-    fn test_meta_hdrl_non_first() {
+    #[tokio::test]
+    async fn test_meta_hdrl_non_first() {
         let data = b"\x00\x00\x00\x7fmeta\x00\x00\x00\x00\x00\x00\x00Qilst\x00\x00\x00I\xa9too\x00\x00\x00Adata\x00\x00\x00\x01\x00\x00\x00\x00TMPGEnc Video Mastering Works 7 Version 7.0.15.17\x00\x00\x00\"hdlr\x00\x00\x00\x00\x00\x00\x00\x00mdirappl\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 
         let mut reader = data.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::MetaBox);
 
         let meta_box = MetaBox::read_block(&mut reader).unwrap();
@@ -208,8 +218,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_meta_unknown() {
+    #[tokio::test]
+    async fn test_meta_unknown() {
         let src_hdlr = HdlrBox {
             handler_type: FourCC::from(*b"test"),
             ..Default::default()
@@ -225,7 +235,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::MetaBox);
         assert_eq!(header.size, src_box.box_size());
 

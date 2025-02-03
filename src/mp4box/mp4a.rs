@@ -595,8 +595,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_mp4a() {
+    #[tokio::test]
+    async fn test_mp4a() {
         let src_box = Mp4aBox {
             data_reference_index: 1,
             channelcount: 2,
@@ -629,7 +629,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::Mp4aBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -637,8 +637,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_mp4a_no_esds() {
+    #[tokio::test]
+    async fn test_mp4a_no_esds() {
         let src_box = Mp4aBox {
             data_reference_index: 1,
             channelcount: 2,
@@ -651,7 +651,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::Mp4aBox);
         assert_eq!(src_box.box_size(), header.size);
 

@@ -158,7 +158,7 @@ pub const HEADER_EXT_SIZE: u64 = 4;
 
 macro_rules! boxtype {
     ($( $name:ident => $value:expr ),*) => {
-        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
         pub enum BoxType {
             $( $name, )*
             UnknownBox(u32),
@@ -270,8 +270,11 @@ impl<'a, R: Reader<'a>> BoxReader<'a, R> {
     #[inline]
     pub fn try_read<T: Mp4Box + BlockReader>(&mut self) -> Result<Option<T>> {
         if T::TYPE == self.kind {
+            println!("\nadad\n{} - {}\nadad\n", self.kind.as_str(), T::TYPE);
             Ok(Some(T::read_block(&mut self.inner)?))
         } else {
+            println!("\nadad\n{} - {}\nadad\n", self.kind.as_str(), T::TYPE);
+
             Ok(None)
         }
     }
@@ -705,7 +708,7 @@ impl<'a> Reader<'a> for &'a [u8] {
 
         Ok(Some(BoxReader {
             kind,
-            inner: Reader::take(self, size as _)?,
+            inner: Reader::take(self, (size - HEADER_SIZE) as _)?,
             m: PhantomData,
         }))
     }
@@ -767,7 +770,7 @@ impl BoxHeader {
 
         Ok(Some(BoxHeader {
             kind: BoxType::from(typ),
-            size: size.saturating_sub(HEADER_SIZE),
+            size,
         }))
     }
 
@@ -829,7 +832,7 @@ impl BoxHeader {
 
         Ok(Some(BoxHeader {
             kind: BoxType::from(typ),
-            size: size.saturating_sub(HEADER_SIZE),
+            size,
         }))
     }
 
@@ -837,10 +840,10 @@ impl BoxHeader {
         if self.size > u32::MAX as u64 {
             writer.write_u32::<BigEndian>(1)?;
             writer.write_u32::<BigEndian>(self.kind.into())?;
-            writer.write_u64::<BigEndian>(self.size + HEADER_SIZE)?;
+            writer.write_u64::<BigEndian>(self.size)?;
             Ok(16)
         } else {
-            writer.write_u32::<BigEndian>((self.size + HEADER_SIZE) as u32)?;
+            writer.write_u32::<BigEndian>(self.size as u32)?;
             writer.write_u32::<BigEndian>(self.kind.into())?;
             Ok(8)
         }
@@ -914,31 +917,43 @@ mod tests {
         assert_eq!(ftyp_fcc, ftyp_fcc2);
     }
 
-    #[test]
-    fn test_largesize_too_small() {
-        let error =
-            BoxHeader::read_sync(&mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 7][..]);
+    #[tokio::test]
+    async fn test_largesize_too_small() {
+        let error = BoxHeader::read(
+            &mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 7][..],
+            &mut 0,
+        )
+        .await;
         assert!(matches!(error, Err(BoxError::InvalidData(_))));
     }
 
-    #[test]
-    fn test_zero_largesize() {
-        let error =
-            BoxHeader::read_sync(&mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 8][..]);
+    #[tokio::test]
+    async fn test_zero_largesize() {
+        let error = BoxHeader::read(
+            &mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 8][..],
+            &mut 0,
+        )
+        .await;
         assert!(matches!(error, Err(BoxError::InvalidData(_))));
     }
 
-    #[test]
-    fn test_nonzero_largesize_too_small() {
-        let error =
-            BoxHeader::read_sync(&mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 15][..]);
+    #[tokio::test]
+    async fn test_nonzero_largesize_too_small() {
+        let error = BoxHeader::read(
+            &mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 15][..],
+            &mut 0,
+        )
+        .await;
         assert!(matches!(error, Err(BoxError::InvalidData(_))));
     }
 
-    #[test]
-    fn test_valid_largesize() {
-        let header =
-            BoxHeader::read_sync(&mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 16][..]);
+    #[tokio::test]
+    async fn test_valid_largesize() {
+        let header = BoxHeader::read(
+            &mut &[0, 0, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 16][..],
+            &mut 0,
+        )
+        .await;
         assert!(matches!(header, Ok(Some(BoxHeader { size: 8, .. }))));
     }
 }

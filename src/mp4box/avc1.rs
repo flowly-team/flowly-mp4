@@ -299,8 +299,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_avc1() {
+    #[tokio::test]
+    async fn test_avc1() {
         let src_box = Avc1Box {
             data_reference_index: 1,
             width: 320,
@@ -330,11 +330,14 @@ mod tests {
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
-        let header = BoxHeader::read_sync(&mut buf.as_slice()).unwrap().unwrap();
+        let header = BoxHeader::read(&mut buf.as_slice(), &mut 0)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(header.kind, BoxType::Avc1Box);
         assert_eq!(src_box.box_size(), header.size);
 
-        let dst_box = Avc1Box::read_block(&mut buf.as_slice()).unwrap();
+        let dst_box = Avc1Box::read_block(&mut &buf[8..]).unwrap();
         assert_eq!(src_box, dst_box);
     }
 }

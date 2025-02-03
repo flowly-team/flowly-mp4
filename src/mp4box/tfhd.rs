@@ -151,8 +151,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_tfhd() {
+    #[tokio::test]
+    async fn test_tfhd() {
         let src_box = TfhdBox {
             version: 0,
             flags: 0,
@@ -168,7 +168,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::TfhdBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -176,8 +176,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_tfhd_with_flags() {
+    #[tokio::test]
+    async fn test_tfhd_with_flags() {
         let src_box = TfhdBox {
             version: 0,
             flags: TfhdBox::FLAG_SAMPLE_DESCRIPTION_INDEX
@@ -195,7 +195,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::TfhdBox);
         assert_eq!(src_box.box_size(), header.size);
 

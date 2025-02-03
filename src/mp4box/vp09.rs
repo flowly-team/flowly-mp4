@@ -169,8 +169,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_vpcc() {
+    #[tokio::test]
+    async fn test_vpcc() {
         let src_box = Vp09Box::new(&Vp9Config {
             width: 1920,
             height: 1080,
@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::Vp09Box);
         assert_eq!(src_box.box_size(), header.size);
 

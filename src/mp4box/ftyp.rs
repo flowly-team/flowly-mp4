@@ -49,7 +49,7 @@ impl Mp4Box for FtypBox {
 
 impl BlockReader for FtypBox {
     fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
-        let brand_count = (reader.remaining() - 16) / 4; // header + major + minor
+        let brand_count = (reader.remaining() - 8) / 4; // major + minor
 
         let major = reader.get_u32();
         let minor = reader.get_u32();
@@ -91,8 +91,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_ftyp() {
+    #[tokio::test]
+    async fn test_ftyp() {
         let src_box = FtypBox {
             major_brand: str::parse("isom").unwrap(),
             minor_version: 0,
@@ -108,7 +108,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::FtypBox);
         assert_eq!(src_box.box_size(), header.size);
 

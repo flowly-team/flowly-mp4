@@ -85,8 +85,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_smhd() {
+    #[tokio::test]
+    async fn test_smhd() {
         let src_box = SmhdBox {
             version: 0,
             flags: 0,
@@ -97,7 +97,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::SmhdBox);
         assert_eq!(src_box.box_size(), header.size);
 
