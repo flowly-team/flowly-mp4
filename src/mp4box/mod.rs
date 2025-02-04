@@ -270,11 +270,8 @@ impl<'a, R: Reader<'a>> BoxReader<'a, R> {
     #[inline]
     pub fn try_read<T: Mp4Box + BlockReader>(&mut self) -> Result<Option<T>> {
         if T::TYPE == self.kind {
-            println!("\nadad\n{} - {}\nadad\n", self.kind.as_str(), T::TYPE);
             Ok(Some(T::read_block(&mut self.inner)?))
         } else {
-            println!("\nadad\n{} - {}\nadad\n", self.kind.as_str(), T::TYPE);
-
             Ok(None)
         }
     }
@@ -702,13 +699,14 @@ impl<'a> Reader<'a> for &'a [u8] {
 
     #[inline]
     fn get_box(&mut self) -> Result<Option<BoxReader<'a, impl Reader<'a> + '_>>> {
-        let Some(BoxHeader { kind, size }) = BoxHeader::read_sync(self)? else {
+        let mut offset = 0;
+        let Some(BoxHeader { kind, size }) = BoxHeader::read_sync(self, &mut offset)? else {
             return Ok(None);
         };
 
         Ok(Some(BoxReader {
             kind,
-            inner: Reader::take(self, (size - HEADER_SIZE) as _)?,
+            inner: Reader::take(self, (size - offset) as _)?,
             m: PhantomData,
         }))
     }
@@ -734,7 +732,7 @@ impl BoxHeader {
         Self { kind: name, size }
     }
 
-    pub fn read_sync<'a>(reader: &mut impl Reader<'a>) -> Result<Option<Self>> {
+    pub fn read_sync<'a>(reader: &mut impl Reader<'a>, offset: &mut u64) -> Result<Option<Self>> {
         if reader.remaining() < 8 {
             return Ok(None);
         }
@@ -742,11 +740,15 @@ impl BoxHeader {
         let sz = reader.get_u32();
         let typ = reader.get_u32();
 
+        *offset += 8;
+
         // Get largesize if size is 1
         let size = if sz == 1 {
             if reader.remaining() < 8 {
                 return Err(BoxError::InvalidData("expected 8 bytes more"));
             }
+
+            *offset += 8;
 
             let largesize = reader.get_u64();
             // Subtract the length of the serialized largesize, as callers assume `size - HEADER_SIZE` is the length
