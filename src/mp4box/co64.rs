@@ -67,6 +67,8 @@ impl BlockReader for Co64Box {
 
         let entry_size = size_of::<u64>(); // chunk_offset
         let entry_count = reader.get_u32();
+        println!("{}", reader.remaining() / entry_size);
+        println!("entry_count: {}", entry_count);
         if entry_count as usize > reader.remaining() / entry_size {
             return Err(BoxError::InvalidData(
                 "co64 entry_count indicates more entries than could fit in the box",
@@ -112,8 +114,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_co64() {
+    #[tokio::test]
+    async fn test_co64() {
         let src_box = Co64Box {
             version: 0,
             flags: 0,
@@ -123,11 +125,12 @@ mod tests {
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
-        let header = BoxHeader::read_sync(&mut buf.as_slice()).unwrap().unwrap();
+        let mut reader = buf.as_slice();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::Co64Box);
         assert_eq!(src_box.box_size(), header.size);
 
-        let dst_box = Co64Box::read_block(&mut buf.as_slice()).unwrap();
+        let dst_box = Co64Box::read_block(&mut reader).unwrap();
         assert_eq!(src_box, dst_box);
     }
 }

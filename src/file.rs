@@ -6,8 +6,8 @@ use std::ops::Range;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, SeekFrom};
 
 use crate::error::{BoxError, MemoryStorageError};
-use crate::Mp4Track;
 use crate::{BlockReader, BoxHeader, BoxType, EmsgBox, FtypBox, MoofBox, MoovBox};
+use crate::{Mp4Track, HEADER_SIZE};
 
 pub trait DataStorage {
     type Error;
@@ -107,9 +107,12 @@ where
         let mut got_moov = false;
         let mut offset = 0u64;
 
-        while let Some(BoxHeader { kind, size: s }) =
+        while let Some(BoxHeader { kind, size: mut s }) =
             BoxHeader::read(&mut self.reader, &mut offset).await?
         {
+            if s >= HEADER_SIZE {
+                s -= HEADER_SIZE; // size without header
+            }
             match kind {
                 BoxType::FtypBox => {
                     println!("ftyp");
@@ -125,6 +128,7 @@ where
 
                 BoxType::MoovBox => {
                     println!("moov");
+
                     if buff.len() < s as usize {
                         buff.resize(s as usize, 0);
                     }
@@ -180,6 +184,7 @@ where
                     offset += s;
                 }
             }
+            println!("\n");
         }
 
         Ok(got_moov)
@@ -187,7 +192,7 @@ where
 
     async fn skip_box(&mut self, bt: BoxType, size: u64) -> Result<(), BoxError> {
         println!("skip {:?}", bt);
-        tokio::io::copy(&mut (&mut self.reader).take(size), &mut tokio::io::empty()).await?;
+        self.reader.seek(SeekFrom::Current(size as _)).await?;
         Ok(())
     }
 
@@ -204,6 +209,7 @@ where
                 buffer: DataBlockBody::Memory(buffer.into()),
             });
         } else {
+            self.skip_box(kind, size).await?;
             self.data_blocks.push(DataBlock {
                 kind,
                 offset,
@@ -273,46 +279,4 @@ where
 
         Ok(None)
     }
-
-    // pub fn into_streams<T: AsRef<[u32]>>(
-    //     self,
-    //     tracks: T,
-    // ) -> impl Iterator<
-    //     Item = (
-    //         u32,
-    //         impl futures::Stream<Item = Result<Mp4Sample, Error<S::Error>>> + 'a,
-    //     ),
-    // >
-    // where
-    //     S::Error: 'a,
-    // {
-    //     let storage = Arc::new(self.data_storage);
-    //     let data_blocks = Arc::new(self.data_blocks);
-
-    //     self.tracks
-    //         .into_iter()
-    //         .filter_map(move |(track_id, track)| {
-    //             if !tracks.as_ref().contains(&track_id) {
-    //                 return None;
-    //             }
-
-    //             let storage = storage.clone();
-    //             let data_blocks = data_blocks.clone();
-
-    //             Some((
-    //                 track_id,
-    //                 async_stream::stream! {
-    //                     for samp_offset in track.samples {
-    //                         yield Ok(Mp4Sample {
-    //                             start_time: samp_offset.start_time,
-    //                             duration: samp_offset.duration,
-    //                             rendering_offset: samp_offset.rendering_offset,
-    //                             is_sync: samp_offset.is_sync,
-    //                             bytes: Bytes::new(),
-    //                         })
-    //                     }
-    //                 },
-    //             ))
-    //         })
-    // }
 }

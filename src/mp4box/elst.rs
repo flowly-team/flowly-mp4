@@ -135,8 +135,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_elst32() {
+    #[tokio::test]
+    async fn test_elst32() {
         let src_box = ElstBox {
             version: 0,
             flags: 0,
@@ -152,7 +152,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::ElstBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -160,8 +160,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_elst64() {
+    #[tokio::test]
+    async fn test_elst64() {
         let src_box = ElstBox {
             version: 1,
             flags: 0,
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::ElstBox);
         assert_eq!(src_box.box_size(), header.size);
 

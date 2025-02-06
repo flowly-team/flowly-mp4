@@ -74,8 +74,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_data() {
+    #[tokio::test]
+    async fn test_data() {
         let src_box = DataBox {
             data_type: DataType::Text,
             data: b"test_data".to_vec(),
@@ -85,7 +85,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::DataBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -93,15 +93,15 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_data_empty() {
+    #[tokio::test]
+    async fn test_data_empty() {
         let src_box = DataBox::default();
         let mut buf = Vec::new();
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::DataBox);
         assert_eq!(src_box.box_size(), header.size);
 

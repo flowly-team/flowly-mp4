@@ -19,8 +19,9 @@ impl IlstBox {
 
     pub fn get_size(&self) -> u64 {
         let mut size = HEADER_SIZE;
+        let ilst_item_header_size = HEADER_SIZE;
         for item in self.items.values() {
-            size += item.get_size();
+            size += ilst_item_header_size + item.get_size();
         }
         size
     }
@@ -76,7 +77,7 @@ impl BlockReader for IlstBox {
                 _ => continue,
             }
         }
-
+        // dbg!(&items);
         Ok(IlstBox { items })
     }
 
@@ -98,7 +99,9 @@ impl<W: Write> WriteBox<&mut W> for IlstBox {
                 MetadataKey::Summary => BoxType::DescBox,
             };
 
-            BoxHeader::new(name, value.get_size()).write(writer)?;
+            let size = HEADER_SIZE + value.box_size(); // Size of IlstItem + DataBox
+
+            BoxHeader::new(name, size).write(writer)?;
             value.write_box(writer)?;
         }
         Ok(size)
@@ -144,8 +147,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_ilst() {
+    #[tokio::test]
+    async fn test_ilst() {
         let src_year = DataBox {
             data_type: DataType::Text,
             data: b"test_year".to_vec(),
@@ -165,7 +168,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::IlstBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -173,15 +176,15 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_ilst_empty() {
+    #[tokio::test]
+    async fn test_ilst_empty() {
         let src_box = IlstBox::default();
         let mut buf = Vec::new();
         src_box.write_box(&mut buf).unwrap();
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::IlstBox);
         assert_eq!(src_box.box_size(), header.size);
 

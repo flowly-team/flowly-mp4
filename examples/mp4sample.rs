@@ -42,7 +42,7 @@ async fn samples<P: AsRef<Path>>(filename: &P) -> Result<(), mp4::Error<MemorySt
         let data = mp4_file
             .read_sample_data(track_id, idx)
             .await?
-            .map(|x| x.slice(0..32));
+            .map(|x| x.slice(0..16));
 
         println!(
             "[{} {} {}] {} - <{}> {} +{} {:?}",

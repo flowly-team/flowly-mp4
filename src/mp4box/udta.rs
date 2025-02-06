@@ -68,8 +68,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_udta_empty() {
+    #[tokio::test]
+    async fn test_udta_empty() {
         let src_box = UdtaBox { meta: None };
 
         let mut buf = Vec::new();
@@ -77,7 +77,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::UdtaBox);
         assert_eq!(header.size, src_box.box_size());
 
@@ -85,8 +85,8 @@ mod tests {
         assert_eq!(dst_box, src_box);
     }
 
-    #[test]
-    fn test_udta() {
+    #[tokio::test]
+    async fn test_udta() {
         let src_box = UdtaBox {
             meta: Some(MetaBox::default()),
         };
@@ -96,7 +96,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::UdtaBox);
         assert_eq!(header.size, src_box.box_size());
 

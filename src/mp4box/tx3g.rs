@@ -155,8 +155,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_tx3g() {
+    #[tokio::test]
+    async fn test_tx3g() {
         let src_box = Tx3gBox {
             data_reference_index: 1,
             display_flags: 0,
@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::Tx3gBox);
         assert_eq!(src_box.box_size(), header.size);
 

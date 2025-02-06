@@ -162,8 +162,8 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_emsg_version0() {
+    #[tokio::test]
+    async fn test_emsg_version0() {
         let src_box = EmsgBox {
             version: 0,
             flags: 0,
@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::EmsgBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -189,8 +189,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_emsg_version1() {
+    #[tokio::test]
+    async fn test_emsg_version1() {
         let src_box = EmsgBox {
             version: 1,
             flags: 0,
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::EmsgBox);
         assert_eq!(src_box.box_size(), header.size);
 

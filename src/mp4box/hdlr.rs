@@ -89,8 +89,8 @@ mod tests {
     use super::*;
     use crate::mp4box::BoxHeader;
 
-    #[test]
-    fn test_hdlr() {
+    #[tokio::test]
+    async fn test_hdlr() {
         let src_box = HdlrBox {
             version: 0,
             flags: 0,
@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::HdlrBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -110,8 +110,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_hdlr_empty() {
+    #[tokio::test]
+    async fn test_hdlr_empty() {
         let src_box = HdlrBox {
             version: 0,
             flags: 0,
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::HdlrBox);
         assert_eq!(src_box.box_size(), header.size);
 
@@ -131,8 +131,8 @@ mod tests {
         assert_eq!(src_box, dst_box);
     }
 
-    #[test]
-    fn test_hdlr_extra() {
+    #[tokio::test]
+    async fn test_hdlr_extra() {
         let real_src_box = HdlrBox {
             version: 0,
             flags: 0,
@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(buf.len(), src_box.box_size() as usize);
 
         let mut reader = buf.as_slice();
-        let header = BoxHeader::read_sync(&mut reader).unwrap().unwrap();
+        let header = BoxHeader::read(&mut reader, &mut 0).await.unwrap().unwrap();
         assert_eq!(header.kind, BoxType::HdlrBox);
         assert_eq!(src_box.box_size(), header.size);
 
