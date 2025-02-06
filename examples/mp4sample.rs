@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::{env, io};
 
-use mp4::{MemoryStorageError, TrackType};
+use mp4::{error::MemoryStorageError, TrackType};
 use tokio::fs::File;
 use tokio::io::BufReader;
 
@@ -34,9 +34,11 @@ async fn samples<P: AsRef<Path>>(filename: &P) -> Result<(), mp4::Error<MemorySt
         .map(|(k, _)| *k);
 
     let track_id = keys.next().unwrap();
-    let track = mp4_file.tracks.get(&track_id).unwrap();
+    let samples_len = mp4_file.tracks.get(&track_id).unwrap().samples.len();
 
-    for (idx, samp) in track.samples.iter().enumerate() {
+    for idx in 0..samples_len {
+        let samp = mp4_file.tracks.get(&track_id).unwrap().samples[idx].clone();
+
         let data = mp4_file
             .read_sample_data(track_id, idx)
             .await?

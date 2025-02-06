@@ -38,6 +38,15 @@ pub enum BoxError {
     TrakNotFound(u32),
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum MemoryStorageError {
+    #[error("IoError: {0}")]
+    IoError(#[from] std::io::Error),
+
+    #[error("data buffer with index {0} not found")]
+    DataBufferNotFound(usize),
+}
+
 #[derive(Error, Debug)]
 pub enum Error<E> {
     #[error("{0}")]
