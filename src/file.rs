@@ -113,13 +113,13 @@ where
             if s >= HEADER_SIZE {
                 s -= HEADER_SIZE; // size without header
             }
+
             match kind {
                 BoxType::FtypBox => {
-                    println!("ftyp");
-
                     if buff.len() < s as usize {
                         buff.resize(s as usize, 0);
                     }
+
                     self.reader.read_exact(&mut buff[0..s as usize]).await?;
                     offset += s;
 
@@ -127,8 +127,6 @@ where
                 }
 
                 BoxType::MoovBox => {
-                    println!("moov");
-
                     if buff.len() < s as usize {
                         buff.resize(s as usize, 0);
                     }
@@ -141,8 +139,6 @@ where
                 }
 
                 BoxType::MoofBox => {
-                    println!("moof");
-
                     if buff.len() < s as usize {
                         buff.resize(s as usize, 0);
                     }
@@ -158,8 +154,6 @@ where
                 }
 
                 BoxType::EmsgBox => {
-                    println!("emsg");
-
                     if buff.len() < s as usize {
                         buff.resize(s as usize, 0);
                     }
@@ -172,13 +166,12 @@ where
                 }
 
                 BoxType::MdatBox => {
-                    println!("mdat");
                     self.save_box(BoxType::MdatBox, s, offset).await?;
                     offset += s;
                 }
 
                 bt => {
-                    println!("{}", bt);
+                    log::info!("unknown box {bt}");
 
                     self.skip_box(bt, s).await?;
                     offset += s;
@@ -190,18 +183,19 @@ where
         Ok(got_moov)
     }
 
-    async fn skip_box(&mut self, bt: BoxType, size: u64) -> Result<(), BoxError> {
-        println!("skip {:?}", bt);
+    async fn skip_box(&mut self, _bt: BoxType, size: u64) -> Result<(), BoxError> {
         self.reader.seek(SeekFrom::Current(size as _)).await?;
         Ok(())
     }
 
     async fn save_box(&mut self, kind: BoxType, size: u64, offset: u64) -> Result<(), BoxError> {
-        println!("data_block {:?} {} - {}", kind, offset, offset + size);
+        log::info!("data_block {:?} {} - {}", kind, offset, offset + size);
 
         if size < 128 * 1024 * 1024 {
             let mut buffer = Vec::new();
+
             tokio::io::copy(&mut self.reader.take(size), &mut buffer).await?;
+
             self.data_blocks.push(DataBlock {
                 kind,
                 offset,
@@ -210,6 +204,7 @@ where
             });
         } else {
             self.skip_box(kind, size).await?;
+
             self.data_blocks.push(DataBlock {
                 kind,
                 offset,
@@ -237,7 +232,7 @@ where
             if let Some(track) = self.tracks.get_mut(&track_id) {
                 track.add_traf(offset, moof.mfhd.sequence_number, traf, &mut self.offsets)
             } else {
-                return Err(BoxError::TrakNotFound(track_id).into());
+                return Err(BoxError::TrakNotFound(track_id));
             }
         }
 
@@ -267,6 +262,7 @@ where
                         let offset = sample.offset - block.offset;
                         mem.slice(offset as usize..offset as usize + sample.size as usize)
                     }
+
                     DataBlockBody::Reader => {
                         let mut buff = vec![0u8; sample.size as _];
                         self.reader.seek(SeekFrom::Start(sample.offset)).await?;
@@ -280,3 +276,7 @@ where
         Ok(None)
     }
 }
+
+pub struct Mp4Demuxer {}
+
+// impl<> Service<> for Mp4Demuxer {}

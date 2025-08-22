@@ -2,7 +2,8 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::{env, io};
 
-use mp4::{error::MemoryStorageError, TrackType};
+use flowly_mp4::Mp4File;
+use flowly_mp4::{error::MemoryStorageError, TrackType};
 use tokio::fs::File;
 use tokio::io::BufReader;
 
@@ -20,11 +21,13 @@ async fn main() {
     }
 }
 
-async fn samples<P: AsRef<Path>>(filename: &P) -> Result<(), mp4::Error<MemoryStorageError>> {
+async fn samples<P: AsRef<Path>>(
+    filename: &P,
+) -> Result<(), flowly_mp4::Error<MemoryStorageError>> {
     let f = File::open(filename).await?;
     let mut reader = BufReader::new(f);
 
-    let mut mp4_file = mp4::Mp4File::new(&mut reader);
+    let mut mp4_file = Mp4File::new(&mut reader);
     println!("streaming possible: {}", mp4_file.read_header().await?);
 
     let mut keys = mp4_file
