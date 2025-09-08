@@ -45,18 +45,18 @@ impl Mp4Box for ElstBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("elst_entries={}", self.entries.len());
         Ok(s)
     }
 }
 
 impl BlockReader for ElstBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let entry_count = reader.get_u32();
@@ -73,7 +73,7 @@ impl BlockReader for ElstBox {
         };
 
         if entry_count as usize > reader.remaining() / entry_size {
-            return Err(BoxError::InvalidData(
+            return Err(Error::InvalidData(
                 "elst entry_count indicates more entries than could fit in the box",
             ));
         }
@@ -107,7 +107,7 @@ impl BlockReader for ElstBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for ElstBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

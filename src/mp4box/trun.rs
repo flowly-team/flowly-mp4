@@ -69,18 +69,18 @@ impl Mp4Box for TrunBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("sample_size={}", self.sample_count);
         Ok(s)
     }
 }
 
 impl BlockReader for TrunBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let sample_size = if TrunBox::FLAG_SAMPLE_DURATION & flags > 0 { size_of::<u32>() } else { 0 } // sample_duration
@@ -108,7 +108,7 @@ impl BlockReader for TrunBox {
         let mut sample_cts = Vec::new();
 
         if sample_count as usize * sample_size > reader.remaining() {
-            return Err(BoxError::InvalidData(
+            return Err(Error::InvalidData(
                 "trun sample_count indicates more values than could fit in the box",
             ));
         }
@@ -170,7 +170,7 @@ impl BlockReader for TrunBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for TrunBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -184,7 +184,7 @@ impl<W: Write> WriteBox<&mut W> for TrunBox {
             writer.write_u32::<BigEndian>(v)?;
         }
         if self.sample_count != self.sample_sizes.len() as u32 {
-            return Err(BoxError::InvalidData("sample count out of sync"));
+            return Err(Error::InvalidData("sample count out of sync"));
         }
         for i in 0..self.sample_count as usize {
             if TrunBox::FLAG_SAMPLE_DURATION & self.flags > 0 {

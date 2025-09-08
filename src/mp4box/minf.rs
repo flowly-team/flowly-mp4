@@ -42,26 +42,26 @@ impl Mp4Box for MinfBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for MinfBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (vmhd, smhd, dinf, stbl) = reader.try_find_box4()?;
 
         if dinf.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::DinfBox));
+            return Err(Error::BoxNotFound(BoxType::DinfBox));
         }
 
         if stbl.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::StblBox));
+            return Err(Error::BoxNotFound(BoxType::StblBox));
         }
 
         Ok(MinfBox {
@@ -78,7 +78,7 @@ impl BlockReader for MinfBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MinfBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

@@ -32,11 +32,11 @@ impl Mp4Box for TrexBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "track_id={} default_sample_duration={}",
             self.track_id, self.default_sample_duration
@@ -46,7 +46,7 @@ impl Mp4Box for TrexBox {
 }
 
 impl BlockReader for TrexBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let track_id = reader.get_u32();
@@ -72,7 +72,7 @@ impl BlockReader for TrexBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for TrexBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

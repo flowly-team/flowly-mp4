@@ -65,11 +65,11 @@ impl Mp4Box for Hev1Box {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "data_reference_index={} width={} height={} frame_count={}",
             self.data_reference_index, self.width, self.height, self.frame_count
@@ -79,7 +79,7 @@ impl Mp4Box for Hev1Box {
 }
 
 impl BlockReader for Hev1Box {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         reader.get_u32(); // reserved
         reader.get_u16(); // reserved
 
@@ -123,7 +123,7 @@ impl BlockReader for Hev1Box {
 }
 
 impl<W: Write> WriteBox<&mut W> for Hev1Box {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -195,11 +195,11 @@ impl Mp4Box for HvcCBox {
                 .sum::<u64>()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         Ok(format!("configuration_version={} general_profile_space={} general_tier_flag={} general_profile_idc={} general_profile_compatibility_flags={} general_constraint_indicator_flag={} general_level_idc={} min_spatial_segmentation_idc={} parallelism_type={} chroma_format_idc={} bit_depth_luma_minus8={} bit_depth_chroma_minus8={} avg_frame_rate={} constant_frame_rate={} num_temporal_layers={} temporal_id_nested={} length_size_minus_one={}",
             self.configuration_version,
             self.general_profile_space,
@@ -236,7 +236,7 @@ pub struct HvcCArray {
 }
 
 impl BlockReader for HvcCBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let configuration_version = reader.get_u8();
         let params = reader.get_u8();
         let general_profile_space = params & 0b11000000 >> 6;
@@ -263,7 +263,7 @@ impl BlockReader for HvcCBox {
         let num_of_arrays = reader.get_u8();
 
         if reader.remaining() < num_of_arrays as usize * 3 {
-            return Err(BoxError::InvalidData(""));
+            return Err(Error::InvalidData(""));
         }
 
         let mut arrays = Vec::with_capacity(num_of_arrays as _);
@@ -273,7 +273,7 @@ impl BlockReader for HvcCBox {
             let num_nalus = reader.get_u16();
 
             if reader.remaining() < num_nalus as usize * 2 {
-                return Err(BoxError::InvalidData(""));
+                return Err(Error::InvalidData(""));
             }
 
             let mut nalus = Vec::with_capacity(num_nalus as usize);
@@ -322,7 +322,7 @@ impl BlockReader for HvcCBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for HvcCBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

@@ -30,18 +30,18 @@ impl Mp4Box for DataBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("type={:?} len={}", self.data_type, self.data.len());
         Ok(s)
     }
 }
 
 impl BlockReader for DataBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let data_type = DataType::try_from(reader.get_u32())?;
         reader.get_u32(); // reserved = 0
 
@@ -57,7 +57,7 @@ impl BlockReader for DataBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for DataBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

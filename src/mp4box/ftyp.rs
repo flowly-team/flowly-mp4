@@ -28,11 +28,11 @@ impl Mp4Box for FtypBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let mut compatible_brands = Vec::new();
         for brand in self.compatible_brands.iter() {
             compatible_brands.push(brand.to_string());
@@ -48,7 +48,7 @@ impl Mp4Box for FtypBox {
 }
 
 impl BlockReader for FtypBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let brand_count = (reader.remaining() - 8) / 4; // major + minor
 
         let major = reader.get_u32();
@@ -73,7 +73,7 @@ impl BlockReader for FtypBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for FtypBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

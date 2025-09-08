@@ -51,18 +51,18 @@ impl Mp4Box for Co64Box {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("entries_count={}", self.entries.len());
         Ok(s)
     }
 }
 
 impl BlockReader for Co64Box {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let entry_size = size_of::<u64>(); // chunk_offset
@@ -70,7 +70,7 @@ impl BlockReader for Co64Box {
         println!("{}", reader.remaining() / entry_size);
         println!("entry_count: {}", entry_count);
         if entry_count as usize > reader.remaining() / entry_size {
-            return Err(BoxError::InvalidData(
+            return Err(Error::InvalidData(
                 "co64 entry_count indicates more entries than could fit in the box",
             ));
         }
@@ -94,7 +94,7 @@ impl BlockReader for Co64Box {
 }
 
 impl<W: Write> WriteBox<&mut W> for Co64Box {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

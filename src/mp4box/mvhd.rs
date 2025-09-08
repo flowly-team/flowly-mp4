@@ -64,11 +64,11 @@ impl Mp4Box for MvhdBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "creation_time={} timescale={} duration={} rate={} volume={}, matrix={}, next_track_id={}",
             self.creation_time,
@@ -84,12 +84,12 @@ impl Mp4Box for MvhdBox {
 }
 
 impl BlockReader for MvhdBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let (creation_time, modification_time, timescale, duration) = if version == 1 {
             if reader.remaining() < Self::size_hint() - 4 + 12 {
-                return Err(BoxError::InvalidData("expected more bytes"));
+                return Err(Error::InvalidData("expected more bytes"));
             }
 
             (
@@ -106,7 +106,7 @@ impl BlockReader for MvhdBox {
                 reader.get_u32() as u64,
             )
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         };
 
         let rate = FixedPointU16::new_raw(reader.get_u32());
@@ -151,7 +151,7 @@ impl BlockReader for MvhdBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MvhdBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -168,7 +168,7 @@ impl<W: Write> WriteBox<&mut W> for MvhdBox {
             writer.write_u32::<BigEndian>(self.timescale)?;
             writer.write_u32::<BigEndian>(self.duration as u32)?;
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         }
         writer.write_u32::<BigEndian>(self.rate.raw_value())?;
 

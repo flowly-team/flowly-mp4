@@ -33,18 +33,18 @@ impl Mp4Box for MoofBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("trafs={}", self.trafs.len());
         Ok(s)
     }
 }
 
 impl BlockReader for MoofBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let mut mfhd = None;
         let mut trafs = Vec::new();
 
@@ -63,7 +63,7 @@ impl BlockReader for MoofBox {
         }
 
         if mfhd.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::MfhdBox));
+            return Err(Error::BoxNotFound(BoxType::MfhdBox));
         }
 
         Ok(MoofBox {
@@ -78,7 +78,7 @@ impl BlockReader for MoofBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MoofBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

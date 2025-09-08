@@ -37,18 +37,18 @@ impl Mp4Box for CttsBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("entries_count={}", self.entries.len());
         Ok(s)
     }
 }
 
 impl BlockReader for CttsBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let entry_count = reader.get_u32();
@@ -56,7 +56,7 @@ impl BlockReader for CttsBox {
                                                               // (sample_offset might be a u32, but the size is the same.)
 
         if entry_count as usize > reader.remaining() / entry_size {
-            return Err(BoxError::InvalidData(
+            return Err(Error::InvalidData(
                 "ctts entry_count indicates more entries than could fit in the box",
             ));
         }
@@ -83,7 +83,7 @@ impl BlockReader for CttsBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for CttsBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

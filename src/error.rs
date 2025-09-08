@@ -1,9 +1,7 @@
-use thiserror::Error;
-
 use crate::mp4box::BoxType;
 
 #[derive(Debug, thiserror::Error)]
-pub enum BoxError {
+pub enum Error {
     #[error("{0}")]
     IoError(#[from] std::io::Error),
 
@@ -36,25 +34,13 @@ pub enum BoxError {
 
     #[error("trak[{0}] not found")]
     TrakNotFound(u32),
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum MemoryStorageError {
-    #[error("IoError: {0}")]
-    IoError(#[from] std::io::Error),
 
     #[error("data buffer with index {0} not found")]
     DataBufferNotFound(usize),
-}
 
-#[derive(Error, Debug)]
-pub enum Error<E> {
-    #[error("{0}")]
-    IoError(#[from] std::io::Error),
+    #[error("failed read length delimeted nalu data")]
+    NaluLengthDelimetedRedFail,
 
-    #[error("box error: {0}")]
-    BoxError(#[from] BoxError),
-
-    #[error("storage error: {0}")]
-    DataStorageError(E),
+    #[error("unsupported media type")]
+    UnsupportedMediaType,
 }

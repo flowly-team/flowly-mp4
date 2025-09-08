@@ -27,22 +27,22 @@ impl Mp4Box for MvexBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for MvexBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (mehd, trex) = reader.try_find_box2::<MehdBox, TrexBox>()?;
 
         if trex.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::TrexBox));
+            return Err(Error::BoxNotFound(BoxType::TrexBox));
         }
 
         Ok(MvexBox {
@@ -57,7 +57,7 @@ impl BlockReader for MvexBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MvexBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

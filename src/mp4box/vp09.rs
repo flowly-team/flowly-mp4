@@ -72,17 +72,17 @@ impl Mp4Box for Vp09Box {
         0x6A
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         Ok(format!("{self:?}"))
     }
 }
 
 impl BlockReader for Vp09Box {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let start_code: u16 = reader.get_u16();
@@ -138,7 +138,7 @@ impl BlockReader for Vp09Box {
 }
 
 impl<W: Write> WriteBox<&mut W> for Vp09Box {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

@@ -65,11 +65,11 @@ impl Mp4Box for Avc1Box {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "data_reference_index={} width={} height={} frame_count={}",
             self.data_reference_index, self.width, self.height, self.frame_count
@@ -79,7 +79,7 @@ impl Mp4Box for Avc1Box {
 }
 
 impl BlockReader for Avc1Box {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         reader.get_u32(); // reserved
         reader.get_u16(); // reserved
 
@@ -123,7 +123,7 @@ impl BlockReader for Avc1Box {
 }
 
 impl<W: Write> WriteBox<&mut W> for Avc1Box {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(self.box_type(), size).write(writer)?;
 
@@ -190,18 +190,18 @@ impl Mp4Box for AvcCBox {
         size
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("avc_profile_indication={}", self.avc_profile_indication);
         Ok(s)
     }
 }
 
 impl BlockReader for AvcCBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let configuration_version = reader.get_u8();
         let avc_profile_indication = reader.get_u8();
         let profile_compatibility = reader.get_u8();
@@ -240,7 +240,7 @@ impl BlockReader for AvcCBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for AvcCBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -279,7 +279,7 @@ impl NalUnit {
         2 + self.bytes.len()
     }
 
-    fn read<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let length = reader.try_get_u16()? as usize;
 
         Ok(NalUnit {
@@ -287,7 +287,7 @@ impl NalUnit {
         })
     }
 
-    fn write<W: Write>(&self, writer: &mut W) -> Result<u64> {
+    fn write<W: Write>(&self, writer: &mut W) -> Result<u64, Error> {
         writer.write_u16::<BigEndian>(self.bytes.len() as u16)?;
         writer.write_all(&self.bytes)?;
         Ok(self.size() as u64)

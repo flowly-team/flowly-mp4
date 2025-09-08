@@ -61,18 +61,18 @@ impl Mp4Box for StblBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for StblBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let mut stsd = None;
         let mut stts = None;
         let mut ctts = None;
@@ -121,23 +121,23 @@ impl BlockReader for StblBox {
         }
 
         if stsd.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::StsdBox));
+            return Err(Error::BoxNotFound(BoxType::StsdBox));
         }
 
         if stts.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::SttsBox));
+            return Err(Error::BoxNotFound(BoxType::SttsBox));
         }
 
         if stsc.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::StscBox));
+            return Err(Error::BoxNotFound(BoxType::StscBox));
         }
 
         if stsz.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::StszBox));
+            return Err(Error::BoxNotFound(BoxType::StszBox));
         }
 
         if stco.is_none() && co64.is_none() {
-            return Err(BoxError::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box));
+            return Err(Error::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box));
         }
 
         Ok(StblBox {
@@ -158,7 +158,7 @@ impl BlockReader for StblBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for StblBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

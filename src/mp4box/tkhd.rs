@@ -123,11 +123,11 @@ impl Mp4Box for TkhdBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "creation_time={} track_id={} duration={} layer={} volume={} matrix={} width={} height={}",
             self.creation_time,
@@ -144,7 +144,7 @@ impl Mp4Box for TkhdBox {
 }
 
 impl BlockReader for TkhdBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let (creation_time, modification_time, track_id, _, duration) = if version == 1 {
@@ -164,7 +164,7 @@ impl BlockReader for TkhdBox {
                 reader.get_u32() as u64,
             )
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         };
 
         reader.get_u64(); // reserved
@@ -212,7 +212,7 @@ impl BlockReader for TkhdBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for TkhdBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -231,7 +231,7 @@ impl<W: Write> WriteBox<&mut W> for TkhdBox {
             writer.write_u32::<BigEndian>(0)?; // reserved
             writer.write_u32::<BigEndian>(self.duration as u32)?;
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         }
 
         writer.write_u64::<BigEndian>(0)?; // reserved

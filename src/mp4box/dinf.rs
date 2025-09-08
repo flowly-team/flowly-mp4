@@ -25,18 +25,18 @@ impl Mp4Box for DinfBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for DinfBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         Ok(DinfBox {
             dref: reader.find_box::<DrefBox>()?,
         })
@@ -48,7 +48,7 @@ impl BlockReader for DinfBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for DinfBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
         self.dref.write_box(writer)?;
@@ -92,18 +92,18 @@ impl Mp4Box for DrefBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for DrefBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
         let mut url = None;
         let entry_count = reader.get_u32();
@@ -125,7 +125,7 @@ impl BlockReader for DrefBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for DrefBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -163,7 +163,7 @@ impl UrlBox {
         let mut size = HEADER_SIZE + HEADER_EXT_SIZE;
 
         if !self.location.is_empty() {
-            size += self.location.bytes().len() as u64 + 1;
+            size += self.location.len() as u64 + 1;
         }
 
         size
@@ -177,18 +177,18 @@ impl Mp4Box for UrlBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("location={}", self.location);
         Ok(s)
     }
 }
 
 impl BlockReader for UrlBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         Ok(UrlBox {
@@ -204,7 +204,7 @@ impl BlockReader for UrlBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for UrlBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

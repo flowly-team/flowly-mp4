@@ -1,10 +1,12 @@
+use bytes::{BufMut, Bytes, BytesMut};
+use flowly::Fourcc;
 use std::collections::BTreeSet;
 
 use crate::ctts::CttsEntry;
-use crate::error::BoxError;
+use crate::error::Error;
 use crate::stsc::StscEntry;
 use crate::stts::SttsEntry;
-use crate::TrackType;
+use crate::{BoxType, TrackType};
 
 #[derive(Clone)]
 pub struct Mp4SampleOffset {
@@ -17,6 +19,7 @@ pub struct Mp4SampleOffset {
     pub chunk_id: u32,
 }
 
+#[derive(Clone)]
 pub struct Mp4Track {
     pub track_id: u32,
     pub duration: u64,
@@ -26,7 +29,7 @@ pub struct Mp4Track {
 }
 
 impl Mp4Track {
-    pub fn new(trak: crate::TrakBox, offsets: &mut BTreeSet<u64>) -> Result<Mp4Track, BoxError> {
+    pub fn new(trak: crate::TrakBox, offsets: &mut BTreeSet<u64>) -> Result<Mp4Track, Error> {
         let default_sample_duration = 1024;
         let mut total_duration = 0;
         let mut samples = Vec::with_capacity(trak.mdia.minf.stbl.stsz.sample_count as _);
@@ -147,6 +150,23 @@ impl Mp4Track {
         TrackType::from(&self.mdia.hdlr.handler_type)
     }
 
+    #[inline]
+    pub fn codec(&self) -> Fourcc {
+        if self.mdia.minf.stbl.stsd.avc1.is_some() {
+            Fourcc::VIDEO_AVC
+        } else if self.mdia.minf.stbl.stsd.hev1.is_some() {
+            Fourcc::VIDEO_HEVC
+        } else if self.mdia.minf.stbl.stsd.vp09.is_some() {
+            Fourcc::VIDEO_VP9
+        } else if self.mdia.minf.stbl.stsd.mp4a.is_some() {
+            Fourcc::AUDIO_AAC
+        } else if self.mdia.minf.stbl.stsd.tx3g.is_some() {
+            Fourcc::from_static("TTXT")
+        } else {
+            Default::default()
+        }
+    }
+
     pub(crate) fn add_traf(
         &mut self,
         base_moof_offset: u64,
@@ -205,6 +225,76 @@ impl Mp4Track {
             sample_offset += size as u64;
             start_time_offset += duration as u64;
         }
+    }
+
+    pub fn sequence_parameter_set(&self) -> Result<&[u8], Error> {
+        if let Some(ref avc1) = self.mdia.minf.stbl.stsd.avc1 {
+            match avc1.avcc.sequence_parameter_sets.first() {
+                Some(nal) => Ok(nal.bytes.as_ref()),
+                None => Err(Error::EntryInStblNotFound(
+                    self.track_id,
+                    BoxType::AvcCBox,
+                    0,
+                )),
+            }
+        } else {
+            Err(Error::BoxInStblNotFound(self.track_id, BoxType::Avc1Box))
+        }
+    }
+
+    pub fn picture_parameter_set(&self) -> Result<&[u8], Error> {
+        if let Some(ref avc1) = self.mdia.minf.stbl.stsd.avc1 {
+            match avc1.avcc.picture_parameter_sets.first() {
+                Some(nal) => Ok(nal.bytes.as_ref()),
+                None => Err(Error::EntryInStblNotFound(
+                    self.track_id,
+                    BoxType::AvcCBox,
+                    0,
+                )),
+            }
+        } else {
+            Err(Error::BoxInStblNotFound(self.track_id, BoxType::Avc1Box))
+        }
+    }
+
+    pub fn decode_params(&self) -> Option<Bytes> {
+        match self.codec() {
+            Fourcc::VIDEO_AVC => {
+                let mut buf = BytesMut::new();
+
+                let sps = self.sequence_parameter_set().unwrap();
+                buf.put_u32(sps.len() as u32 + 4);
+                buf.put_slice(&[0, 0, 0, 1]);
+                buf.put_slice(sps);
+
+                let pps = self.picture_parameter_set().unwrap();
+                buf.put_u32(pps.len() as u32 + 4);
+                buf.put_slice(&[0, 0, 0, 1]);
+                buf.put_slice(pps);
+
+                Some(buf.freeze())
+            }
+
+            Fourcc::VIDEO_HEVC => {
+                let mut buf = BytesMut::new();
+                let x = self.mdia.minf.stbl.stsd.hev1.as_ref().unwrap();
+                for arr in &x.hvcc.arrays {
+                    for nalu in &arr.nalus {
+                        buf.put_u32(nalu.data.len() as u32 + 4);
+                        buf.put_slice(&[0, 0, 0, 1]);
+                        buf.put_slice(&nalu.data);
+                    }
+                }
+                Some(buf.freeze())
+            }
+
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn timescale(&self) -> u32 {
+        self.mdia.mdhd.timescale
     }
 }
 

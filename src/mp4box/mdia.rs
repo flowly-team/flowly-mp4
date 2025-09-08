@@ -28,18 +28,18 @@ impl Mp4Box for MdiaBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for MdiaBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (mdhd, hdlr, minf) = reader.find_box3()?;
         Ok(MdiaBox { mdhd, hdlr, minf })
     }
@@ -50,7 +50,7 @@ impl BlockReader for MdiaBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MdiaBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

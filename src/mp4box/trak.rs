@@ -32,15 +32,15 @@ impl TrakBox {
         size
     }
 
-    pub(crate) fn stsc_index(&self, sample_id: u32) -> Result<usize> {
+    pub(crate) fn stsc_index(&self, sample_id: u32) -> Result<usize, Error> {
         if self.mdia.minf.stbl.stsc.entries.is_empty() {
-            return Err(BoxError::InvalidData("no stsc entries"));
+            return Err(Error::InvalidData("no stsc entries"));
         }
 
         for (i, entry) in self.mdia.minf.stbl.stsc.entries.iter().enumerate() {
             if sample_id < entry.first_sample {
                 return if i == 0 {
-                    Err(BoxError::InvalidData("sample not found"))
+                    Err(Error::InvalidData("sample not found"))
                 } else {
                     Ok(i - 1)
                 };
@@ -50,16 +50,16 @@ impl TrakBox {
         Ok(self.mdia.minf.stbl.stsc.entries.len() - 1)
     }
 
-    pub(crate) fn chunk_offset(&self, chunk_id: u32) -> Result<u64> {
+    pub(crate) fn chunk_offset(&self, chunk_id: u32) -> Result<u64, Error> {
         if self.mdia.minf.stbl.stco.is_none() && self.mdia.minf.stbl.co64.is_none() {
-            return Err(BoxError::InvalidData("must have either stco or co64 boxes"));
+            return Err(Error::InvalidData("must have either stco or co64 boxes"));
         }
 
         if let Some(ref stco) = self.mdia.minf.stbl.stco {
             if let Some(offset) = stco.entries.get(chunk_id as usize - 1) {
                 return Ok(*offset as u64);
             } else {
-                return Err(BoxError::EntryInStblNotFound(
+                return Err(Error::EntryInStblNotFound(
                     self.tkhd.track_id,
                     BoxType::StcoBox,
                     chunk_id,
@@ -69,7 +69,7 @@ impl TrakBox {
             if let Some(offset) = co64.entries.get(chunk_id as usize - 1) {
                 return Ok(*offset);
             } else {
-                return Err(BoxError::EntryInStblNotFound(
+                return Err(Error::EntryInStblNotFound(
                     self.tkhd.track_id,
                     BoxType::Co64Box,
                     chunk_id,
@@ -77,10 +77,10 @@ impl TrakBox {
             }
         }
 
-        Err(BoxError::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box))
+        Err(Error::Box2NotFound(BoxType::StcoBox, BoxType::Co64Box))
     }
 
-    pub(crate) fn sample_size(&self, sample_id: u32) -> Result<u32> {
+    pub(crate) fn sample_size(&self, sample_id: u32) -> Result<u32, Error> {
         let stsz = &self.mdia.minf.stbl.stsz;
 
         if stsz.sample_size > 0 {
@@ -90,7 +90,7 @@ impl TrakBox {
         if let Some(size) = stsz.sample_sizes.get(sample_id as usize - 1) {
             Ok(*size)
         } else {
-            Err(BoxError::EntryInStblNotFound(
+            Err(Error::EntryInStblNotFound(
                 self.tkhd.track_id,
                 BoxType::StszBox,
                 sample_id,
@@ -98,7 +98,7 @@ impl TrakBox {
         }
     }
 
-    pub(crate) fn sample_offset(&self, sample_id: u32) -> Result<u64> {
+    pub(crate) fn sample_offset(&self, sample_id: u32) -> Result<u64, Error> {
         let stsc_index = self.stsc_index(sample_id)?;
 
         let stsc = &self.mdia.minf.stbl.stsc;
@@ -112,7 +112,7 @@ impl TrakBox {
             .checked_sub(first_sample)
             .map(|n| n / samples_per_chunk)
             .and_then(|n| n.checked_add(first_chunk))
-            .ok_or(BoxError::InvalidData(
+            .ok_or(Error::InvalidData(
                 "attempt to calculate stsc chunk_id with overflow",
             ))?;
 
@@ -128,7 +128,7 @@ impl TrakBox {
         Ok(chunk_offset + sample_offset as u64)
     }
 
-    pub(crate) fn sample_time(&self, sample_id: u32) -> Result<(u64, u32)> {
+    pub(crate) fn sample_time(&self, sample_id: u32) -> Result<(u64, u32), Error> {
         let stts = &self.mdia.minf.stbl.stts;
 
         let mut sample_count: u32 = 1;
@@ -138,7 +138,7 @@ impl TrakBox {
             let new_sample_count =
                 sample_count
                     .checked_add(entry.sample_count)
-                    .ok_or(BoxError::InvalidData(
+                    .ok_or(Error::InvalidData(
                         "attempt to sum stts entries sample_count with overflow",
                     ))?;
 
@@ -152,21 +152,21 @@ impl TrakBox {
             elapsed += entry.sample_count as u64 * entry.sample_delta as u64;
         }
 
-        Err(BoxError::EntryInStblNotFound(
+        Err(Error::EntryInStblNotFound(
             self.tkhd.track_id,
             BoxType::SttsBox,
             sample_id,
         ))
     }
 
-    pub(crate) fn ctts_index(&self, sample_id: u32) -> Result<(usize, u32)> {
+    pub(crate) fn ctts_index(&self, sample_id: u32) -> Result<(usize, u32), Error> {
         let ctts = self.mdia.minf.stbl.ctts.as_ref().unwrap();
         let mut sample_count: u32 = 1;
         for (i, entry) in ctts.entries.iter().enumerate() {
             let next_sample_count =
                 sample_count
                     .checked_add(entry.sample_count)
-                    .ok_or(BoxError::InvalidData(
+                    .ok_or(Error::InvalidData(
                         "attempt to sum ctts entries sample_count with overflow",
                     ))?;
             if sample_id < next_sample_count {
@@ -175,7 +175,7 @@ impl TrakBox {
             sample_count = next_sample_count;
         }
 
-        Err(BoxError::EntryInStblNotFound(
+        Err(Error::EntryInStblNotFound(
             self.tkhd.track_id,
             BoxType::CttsBox,
             sample_id,
@@ -210,26 +210,26 @@ impl Mp4Box for TrakBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for TrakBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (tkhd, edts, meta, mdia) = reader.try_find_box4()?;
 
         if tkhd.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::TkhdBox));
+            return Err(Error::BoxNotFound(BoxType::TkhdBox));
         }
 
         if mdia.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::MdiaBox));
+            return Err(Error::BoxNotFound(BoxType::MdiaBox));
         }
 
         Ok(TrakBox {
@@ -246,7 +246,7 @@ impl BlockReader for TrakBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for TrakBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

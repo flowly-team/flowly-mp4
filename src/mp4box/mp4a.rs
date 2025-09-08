@@ -58,11 +58,11 @@ impl Mp4Box for Mp4aBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "channel_count={} sample_size={} sample_rate={}",
             self.channelcount,
@@ -74,7 +74,7 @@ impl Mp4Box for Mp4aBox {
 }
 
 impl BlockReader for Mp4aBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         reader.get_u32(); // reserved
         reader.get_u16(); // reserved
 
@@ -93,7 +93,7 @@ impl BlockReader for Mp4aBox {
 
         if version == 1 {
             if reader.remaining() < 16 {
-                return Err(BoxError::InvalidData("expected at least 16 bytes more"));
+                return Err(Error::InvalidData("expected at least 16 bytes more"));
             }
 
             // Skip QTFF
@@ -116,7 +116,7 @@ impl BlockReader for Mp4aBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for Mp4aBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -166,17 +166,17 @@ impl Mp4Box for EsdsBox {
             + ESDescriptor::desc_size() as u64
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         Ok(String::new())
     }
 }
 
 impl BlockReader for EsdsBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let mut es_desc = None;
@@ -191,7 +191,7 @@ impl BlockReader for EsdsBox {
         }
 
         if es_desc.is_none() {
-            return Err(BoxError::InvalidData("ESDescriptor not found"));
+            return Err(Error::InvalidData("ESDescriptor not found"));
         }
 
         Ok(EsdsBox {
@@ -207,7 +207,7 @@ impl BlockReader for EsdsBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for EsdsBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -225,7 +225,7 @@ trait Descriptor: Sized {
 }
 
 trait WriteDesc<T>: Sized {
-    fn write_desc(&self, _: T) -> Result<u32>;
+    fn write_desc(&self, _: T) -> Result<u32, Error>;
 }
 
 fn read_desc<'a, R: Reader<'a>>(reader: &mut R) -> Option<(u8, u32)> {
@@ -253,11 +253,11 @@ fn size_of_length(size: u32) -> u32 {
     }
 }
 
-fn write_desc<W: Write>(writer: &mut W, tag: u8, size: u32) -> Result<u64> {
+fn write_desc<W: Write>(writer: &mut W, tag: u8, size: u32) -> Result<u64, Error> {
     writer.write_u8(tag)?;
 
     if size as u64 > std::u32::MAX as u64 {
-        return Err(BoxError::InvalidData("invalid descriptor length range"));
+        return Err(Error::InvalidData("invalid descriptor length range"));
     }
 
     let nbytes = size_of_length(size);
@@ -307,7 +307,7 @@ impl Descriptor for ESDescriptor {
 }
 
 impl BlockReader for ESDescriptor {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let es_id = reader.get_u16();
         reader.get_u8(); // XXX flags must be 0
 
@@ -343,7 +343,7 @@ impl BlockReader for ESDescriptor {
 }
 
 impl<W: Write> WriteDesc<&mut W> for ESDescriptor {
-    fn write_desc(&self, writer: &mut W) -> Result<u32> {
+    fn write_desc(&self, writer: &mut W) -> Result<u32, Error> {
         let size = Self::desc_size();
         write_desc(writer, Self::desc_tag(), size)?;
 
@@ -396,7 +396,7 @@ impl Descriptor for DecoderConfigDescriptor {
 }
 
 impl BlockReader for DecoderConfigDescriptor {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let object_type_indication = reader.get_u8();
         let byte_a = reader.get_u8();
         let stream_type = (byte_a & 0xFC) >> 2;
@@ -436,7 +436,7 @@ impl BlockReader for DecoderConfigDescriptor {
 }
 
 impl<W: Write> WriteDesc<&mut W> for DecoderConfigDescriptor {
-    fn write_desc(&self, writer: &mut W) -> Result<u32> {
+    fn write_desc(&self, writer: &mut W) -> Result<u32, Error> {
         let size = Self::desc_size();
         write_desc(writer, Self::desc_tag(), size)?;
 
@@ -493,7 +493,7 @@ fn get_chan_conf<'a, R: Reader<'a>>(
     byte_b: u8,
     freq_index: u8,
     extended_profile: bool,
-) -> Result<u8> {
+) -> Result<u8, Error> {
     let chan_conf;
     if freq_index == 15 {
         // Skip the 24 bit sample rate
@@ -510,7 +510,7 @@ fn get_chan_conf<'a, R: Reader<'a>>(
 }
 
 impl BlockReader for DecoderSpecificDescriptor {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let byte_a = reader.get_u8();
         let byte_b = reader.get_u8();
         let profile = get_audio_object_type(byte_a, byte_b);
@@ -538,7 +538,7 @@ impl BlockReader for DecoderSpecificDescriptor {
 }
 
 impl<W: Write> WriteDesc<&mut W> for DecoderSpecificDescriptor {
-    fn write_desc(&self, writer: &mut W) -> Result<u32> {
+    fn write_desc(&self, writer: &mut W) -> Result<u32, Error> {
         let size = Self::desc_size();
         write_desc(writer, Self::desc_tag(), size)?;
 
@@ -569,7 +569,7 @@ impl Descriptor for SLConfigDescriptor {
 }
 
 impl BlockReader for SLConfigDescriptor {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         reader.get_u8(); // pre-defined
 
         Ok(SLConfigDescriptor {})
@@ -581,7 +581,7 @@ impl BlockReader for SLConfigDescriptor {
 }
 
 impl<W: Write> WriteDesc<&mut W> for SLConfigDescriptor {
-    fn write_desc(&self, writer: &mut W) -> Result<u32> {
+    fn write_desc(&self, writer: &mut W) -> Result<u32, Error> {
         let size = Self::desc_size();
         write_desc(writer, Self::desc_tag(), size)?;
 

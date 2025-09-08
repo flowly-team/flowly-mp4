@@ -29,29 +29,29 @@ impl Mp4Box for VpccBox {
         HEADER_SIZE + HEADER_EXT_SIZE + 8
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         Ok(format!("{self:?}"))
     }
 }
 
 impl BlockReader for VpccBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
-        let profile: u8 = reader.get_u8();
-        let level: u8 = reader.get_u8();
+        let profile = reader.get_u8();
+        let level = reader.get_u8();
         let (bit_depth, chroma_subsampling, video_full_range_flag) = {
             let b = reader.get_u8();
             (b >> 4, b << 4 >> 5, b & 0x01 == 1)
         };
 
-        let transfer_characteristics: u8 = reader.get_u8();
-        let matrix_coefficients: u8 = reader.get_u8();
-        let codec_initialization_data_size: u16 = reader.get_u16();
+        let transfer_characteristics = reader.get_u8();
+        let matrix_coefficients = reader.get_u8();
+        let codec_initialization_data_size = reader.get_u16();
 
         Ok(Self {
             version,
@@ -74,7 +74,7 @@ impl BlockReader for VpccBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for VpccBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

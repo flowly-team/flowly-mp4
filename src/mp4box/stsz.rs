@@ -33,11 +33,11 @@ impl Mp4Box for StszBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "sample_size={} sample_count={} sample_sizes={}",
             self.sample_size,
@@ -49,7 +49,7 @@ impl Mp4Box for StszBox {
 }
 
 impl BlockReader for StszBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let sample_size = reader.get_u32();
@@ -62,7 +62,7 @@ impl BlockReader for StszBox {
         let mut sample_sizes = Vec::new();
         if sample_size == 0 {
             if sample_count as usize > reader.remaining() / stsz_item_size {
-                return Err(BoxError::InvalidData(
+                return Err(Error::InvalidData(
                     "stsz sample_count indicates more values than could fit in the box",
                 ));
             }
@@ -88,7 +88,7 @@ impl BlockReader for StszBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for StszBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -98,7 +98,7 @@ impl<W: Write> WriteBox<&mut W> for StszBox {
         writer.write_u32::<BigEndian>(self.sample_count)?;
         if self.sample_size == 0 {
             if self.sample_count != self.sample_sizes.len() as u32 {
-                return Err(BoxError::InvalidData("sample count out of sync"));
+                return Err(Error::InvalidData("sample count out of sync"));
             }
             for sample_number in self.sample_sizes.iter() {
                 writer.write_u32::<BigEndian>(*sample_number)?;

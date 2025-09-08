@@ -61,11 +61,11 @@ impl Mp4Box for MetaBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = match self {
             Self::Mdir { .. } => "hdlr=ilst".to_string(),
             Self::Unknown { hdlr, data } => {
@@ -86,7 +86,7 @@ impl Default for MetaBox {
 }
 
 impl BlockReader for MetaBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let extended_header = reader.peek_u32();
         if extended_header == 0 {
             reader.skip(4);
@@ -110,10 +110,7 @@ impl BlockReader for MetaBox {
             },
             _ => MetaBox::Unknown {
                 hdlr: hdlr.clone(),
-                data: boxes
-                    .into_iter()
-                    .map(|(k, v)| (k, v))
-                    .collect::<Vec<(BoxType, Vec<u8>)>>(),
+                data: boxes.into_iter().collect::<Vec<(BoxType, Vec<u8>)>>(),
             },
         })
     }
@@ -124,7 +121,7 @@ impl BlockReader for MetaBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MetaBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

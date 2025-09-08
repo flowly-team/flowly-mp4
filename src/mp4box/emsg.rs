@@ -45,18 +45,18 @@ impl Mp4Box for EmsgBox {
             + self.message_data.len() as u64
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("id={} value={}", self.id, self.value);
         Ok(s)
     }
 }
 
 impl BlockReader for EmsgBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let (
@@ -91,7 +91,7 @@ impl BlockReader for EmsgBox {
                 reader.get_null_terminated_string(),
                 reader.get_null_terminated_string(),
             ),
-            _ => return Err(BoxError::InvalidData("version must be 0 or 1")),
+            _ => return Err(Error::InvalidData("version must be 0 or 1")),
         };
 
         Ok(EmsgBox {
@@ -114,7 +114,7 @@ impl BlockReader for EmsgBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for EmsgBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -136,7 +136,7 @@ impl<W: Write> WriteBox<&mut W> for EmsgBox {
                 write_null_terminated_str(writer, &self.scheme_id_uri)?;
                 write_null_terminated_str(writer, &self.value)?;
             }
-            _ => return Err(BoxError::InvalidData("version must be 0 or 1")),
+            _ => return Err(Error::InvalidData("version must be 0 or 1")),
         }
 
         for &byte in &self.message_data {
@@ -147,7 +147,7 @@ impl<W: Write> WriteBox<&mut W> for EmsgBox {
     }
 }
 
-fn write_null_terminated_str<W: Write>(writer: &mut W, string: &str) -> Result<()> {
+fn write_null_terminated_str<W: Write>(writer: &mut W, string: &str) -> Result<(), Error> {
     for byte in string.bytes() {
         writer.write_u8(byte)?;
     }

@@ -36,11 +36,11 @@ impl Mp4Box for VmhdBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "graphics_mode={} op_color={}{}{}",
             self.graphics_mode, self.op_color.red, self.op_color.green, self.op_color.blue
@@ -50,7 +50,7 @@ impl Mp4Box for VmhdBox {
 }
 
 impl BlockReader for VmhdBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
         let graphics_mode = reader.get_u16();
         let op_color = RgbColor {
@@ -73,7 +73,7 @@ impl BlockReader for VmhdBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for VmhdBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

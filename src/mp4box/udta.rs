@@ -30,17 +30,17 @@ impl Mp4Box for UdtaBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         Ok(String::new())
     }
 }
 
 impl BlockReader for UdtaBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         Ok(UdtaBox {
             meta: reader.try_find_box()?,
         })
@@ -52,7 +52,7 @@ impl BlockReader for UdtaBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for UdtaBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 

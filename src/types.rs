@@ -92,17 +92,15 @@ pub struct FourCC {
 }
 
 impl std::str::FromStr for FourCC {
-    type Err = BoxError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self, Error> {
         if let [a, b, c, d] = s.as_bytes() {
             Ok(Self {
                 value: [*a, *b, *c, *d],
             })
         } else {
-            Err(BoxError::InvalidData(
-                "expected exactly four bytes in string",
-            ))
+            Err(Error::InvalidData("expected exactly four bytes in string"))
         }
     }
 }
@@ -187,13 +185,13 @@ impl fmt::Display for TrackType {
 }
 
 impl TryFrom<&str> for TrackType {
-    type Error = BoxError;
-    fn try_from(handler: &str) -> Result<TrackType> {
+    type Error = Error;
+    fn try_from(handler: &str) -> Result<TrackType, Error> {
         match handler {
             HANDLER_TYPE_VIDEO => Ok(TrackType::Video),
             HANDLER_TYPE_AUDIO => Ok(TrackType::Audio),
             HANDLER_TYPE_SUBTITLE => Ok(TrackType::Subtitle),
-            _ => Err(BoxError::InvalidData("unsupported handler type")),
+            _ => Err(Error::InvalidData("unsupported handler type")),
         }
     }
 }
@@ -215,7 +213,7 @@ impl From<TrackType> for FourCC {
             TrackType::Video => HANDLER_TYPE_VIDEO_FOURCC.into(),
             TrackType::Audio => HANDLER_TYPE_AUDIO_FOURCC.into(),
             TrackType::Subtitle => HANDLER_TYPE_SUBTITLE_FOURCC.into(),
-            TrackType::Other(inner) => inner.into(),
+            TrackType::Other(inner) => inner,
         }
     }
 }
@@ -243,15 +241,15 @@ impl fmt::Display for MediaType {
 }
 
 impl TryFrom<&str> for MediaType {
-    type Error = BoxError;
-    fn try_from(media: &str) -> Result<MediaType> {
+    type Error = Error;
+    fn try_from(media: &str) -> Result<MediaType, Error> {
         match media {
             MEDIA_TYPE_H264 => Ok(MediaType::H264),
             MEDIA_TYPE_H265 => Ok(MediaType::H265),
             MEDIA_TYPE_VP9 => Ok(MediaType::VP9),
             MEDIA_TYPE_AAC => Ok(MediaType::AAC),
             MEDIA_TYPE_TTXT => Ok(MediaType::TTXT),
-            _ => Err(BoxError::InvalidData("unsupported media type")),
+            _ => Err(Error::InvalidData("unsupported media type")),
         }
     }
 }
@@ -291,8 +289,8 @@ pub enum AvcProfile {
 }
 
 impl TryFrom<(u8, u8)> for AvcProfile {
-    type Error = BoxError;
-    fn try_from(value: (u8, u8)) -> Result<AvcProfile> {
+    type Error = Error;
+    fn try_from(value: (u8, u8)) -> Result<AvcProfile, Error> {
         let profile = value.0;
         let constraint_set1_flag = (value.1 & 0x40) >> 7;
         match (profile, constraint_set1_flag) {
@@ -301,7 +299,7 @@ impl TryFrom<(u8, u8)> for AvcProfile {
             (77, _) => Ok(AvcProfile::AvcMain),
             (88, _) => Ok(AvcProfile::AvcExtended),
             (100, _) => Ok(AvcProfile::AvcHigh),
-            _ => Err(BoxError::InvalidData("unsupported avc profile")),
+            _ => Err(Error::InvalidData("unsupported avc profile")),
         }
     }
 }
@@ -366,8 +364,8 @@ pub enum AudioObjectType {
 }
 
 impl TryFrom<u8> for AudioObjectType {
-    type Error = BoxError;
-    fn try_from(value: u8) -> Result<AudioObjectType> {
+    type Error = Error;
+    fn try_from(value: u8) -> Result<AudioObjectType, Error> {
         match value {
             1 => Ok(AudioObjectType::AacMain),
             2 => Ok(AudioObjectType::AacLowComplexity),
@@ -411,7 +409,7 @@ impl TryFrom<u8> for AudioObjectType {
             44 => Ok(AudioObjectType::LowDelayMpegSurround),
             45 => Ok(AudioObjectType::SpatialAudioObjectCodingDialogueEnhancement),
             46 => Ok(AudioObjectType::AudioSync),
-            _ => Err(BoxError::InvalidData("invalid audio object type")),
+            _ => Err(Error::InvalidData("invalid audio object type")),
         }
     }
 }
@@ -484,8 +482,8 @@ pub enum SampleFreqIndex {
 }
 
 impl TryFrom<u8> for SampleFreqIndex {
-    type Error = BoxError;
-    fn try_from(value: u8) -> Result<SampleFreqIndex> {
+    type Error = Error;
+    fn try_from(value: u8) -> Result<SampleFreqIndex, Error> {
         match value {
             0x0 => Ok(SampleFreqIndex::Freq96000),
             0x1 => Ok(SampleFreqIndex::Freq88200),
@@ -500,7 +498,7 @@ impl TryFrom<u8> for SampleFreqIndex {
             0xa => Ok(SampleFreqIndex::Freq11025),
             0xb => Ok(SampleFreqIndex::Freq8000),
             0xc => Ok(SampleFreqIndex::Freq7350),
-            _ => Err(BoxError::InvalidData("invalid sampling frequency index")),
+            _ => Err(Error::InvalidData("invalid sampling frequency index")),
         }
     }
 }
@@ -537,8 +535,8 @@ pub enum ChannelConfig {
 }
 
 impl TryFrom<u8> for ChannelConfig {
-    type Error = BoxError;
-    fn try_from(value: u8) -> Result<ChannelConfig> {
+    type Error = Error;
+    fn try_from(value: u8) -> Result<ChannelConfig, Error> {
         match value {
             0x1 => Ok(ChannelConfig::Mono),
             0x2 => Ok(ChannelConfig::Stereo),
@@ -547,7 +545,7 @@ impl TryFrom<u8> for ChannelConfig {
             0x5 => Ok(ChannelConfig::Five),
             0x6 => Ok(ChannelConfig::FiveOne),
             0x7 => Ok(ChannelConfig::SevenOne),
-            _ => Err(BoxError::InvalidData("invalid channel configuration")),
+            _ => Err(Error::InvalidData("invalid channel configuration")),
         }
     }
 }
@@ -676,14 +674,14 @@ impl std::default::Default for DataType {
 }
 
 impl TryFrom<u32> for DataType {
-    type Error = BoxError;
-    fn try_from(value: u32) -> Result<DataType> {
+    type Error = Error;
+    fn try_from(value: u32) -> Result<DataType, Self::Error> {
         match value {
             0x000000 => Ok(DataType::Binary),
             0x000001 => Ok(DataType::Text),
             0x00000D => Ok(DataType::Image),
             0x000015 => Ok(DataType::TempoCpil),
-            _ => Err(BoxError::InvalidData("invalid data type")),
+            _ => Err(Error::InvalidData("invalid data type")),
         }
     }
 }
@@ -698,17 +696,17 @@ pub enum MetadataKey {
 
 pub trait Metadata<'a> {
     /// The video's title
-    fn title(&self) -> Option<Cow<str>>;
+    fn title(&self) -> Option<Cow<'_, str>>;
     /// The video's release year
     fn year(&self) -> Option<u32>;
     /// The video's poster (cover art)
     fn poster(&self) -> Option<&[u8]>;
     /// The video's summary
-    fn summary(&self) -> Option<Cow<str>>;
+    fn summary(&self) -> Option<Cow<'_, str>>;
 }
 
 impl<'a, T: Metadata<'a>> Metadata<'a> for &'a T {
-    fn title(&self) -> Option<Cow<str>> {
+    fn title(&self) -> Option<Cow<'_, str>> {
         (**self).title()
     }
 
@@ -720,13 +718,13 @@ impl<'a, T: Metadata<'a>> Metadata<'a> for &'a T {
         (**self).poster()
     }
 
-    fn summary(&self) -> Option<Cow<str>> {
+    fn summary(&self) -> Option<Cow<'_, str>> {
         (**self).summary()
     }
 }
 
 impl<'a, T: Metadata<'a>> Metadata<'a> for Option<T> {
-    fn title(&self) -> Option<Cow<str>> {
+    fn title(&self) -> Option<Cow<'_, str>> {
         self.as_ref().and_then(|t| t.title())
     }
 
@@ -738,7 +736,7 @@ impl<'a, T: Metadata<'a>> Metadata<'a> for Option<T> {
         self.as_ref().and_then(|t| t.poster())
     }
 
-    fn summary(&self) -> Option<Cow<str>> {
+    fn summary(&self) -> Option<Cow<'_, str>> {
         self.as_ref().and_then(|t| t.summary())
     }
 }

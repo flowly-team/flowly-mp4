@@ -32,29 +32,24 @@ impl Mp4Box for TrafBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = String::new();
         Ok(s)
     }
 }
 
 impl BlockReader for TrafBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (tfhd, tfdt, trun) = reader.try_find_box3()?;
+        let Some(tfhd) = tfhd else {
+            return Err(Error::BoxNotFound(BoxType::TfhdBox));
+        };
 
-        if tfhd.is_none() {
-            return Err(BoxError::BoxNotFound(BoxType::TfhdBox));
-        }
-
-        Ok(TrafBox {
-            tfhd: tfhd.unwrap(),
-            tfdt,
-            trun,
-        })
+        Ok(TrafBox { tfhd, tfdt, trun })
     }
 
     fn size_hint() -> usize {
@@ -63,14 +58,16 @@ impl BlockReader for TrafBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for TrafBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
         self.tfhd.write_box(writer)?;
+
         if let Some(ref tfdt) = self.tfdt {
             tfdt.write_box(writer)?;
         }
+
         if let Some(ref trun) = self.trun {
             trun.write_box(writer)?;
         }

@@ -34,18 +34,18 @@ impl Mp4Box for IlstBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("item_count={}", self.items.len());
         Ok(s)
     }
 }
 
 impl BlockReader for IlstBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let mut items = HashMap::new();
 
         while let Some(mut bx) = reader.get_box()? {
@@ -87,7 +87,7 @@ impl BlockReader for IlstBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for IlstBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -109,7 +109,7 @@ impl<W: Write> WriteBox<&mut W> for IlstBox {
 }
 
 impl<'a> Metadata<'a> for IlstBox {
-    fn title(&self) -> Option<Cow<str>> {
+    fn title(&self) -> Option<Cow<'_, str>> {
         self.items.get(&MetadataKey::Title).map(item_to_str)
     }
 
@@ -121,7 +121,7 @@ impl<'a> Metadata<'a> for IlstBox {
         self.items.get(&MetadataKey::Poster).map(item_to_bytes)
     }
 
-    fn summary(&self) -> Option<Cow<str>> {
+    fn summary(&self) -> Option<Cow<'_, str>> {
         self.items.get(&MetadataKey::Summary).map(item_to_str)
     }
 }
@@ -130,7 +130,7 @@ fn item_to_bytes(item: &DataBox) -> &[u8] {
     &item.data
 }
 
-fn item_to_str(item: &DataBox) -> Cow<str> {
+fn item_to_str(item: &DataBox) -> Cow<'_, str> {
     String::from_utf8_lossy(&item.data)
 }
 

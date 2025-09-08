@@ -55,11 +55,11 @@ impl Mp4Box for MdhdBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!(
             "creation_time={} timescale={} duration={} language={}",
             self.creation_time, self.timescale, self.duration, self.language
@@ -69,7 +69,7 @@ impl Mp4Box for MdhdBox {
 }
 
 impl BlockReader for MdhdBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let (creation_time, modification_time, timescale, duration) = if version == 1 {
@@ -87,7 +87,7 @@ impl BlockReader for MdhdBox {
                 reader.get_u32() as u64,
             )
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         };
 
         let language_code = reader.get_u16();
@@ -110,7 +110,7 @@ impl BlockReader for MdhdBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MdhdBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -127,7 +127,7 @@ impl<W: Write> WriteBox<&mut W> for MdhdBox {
             writer.write_u32::<BigEndian>(self.timescale)?;
             writer.write_u32::<BigEndian>(self.duration as u32)?;
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         }
 
         let language_code = language_code(&self.language);

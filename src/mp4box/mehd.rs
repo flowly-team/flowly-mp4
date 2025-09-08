@@ -35,18 +35,18 @@ impl Mp4Box for MehdBox {
         self.get_size()
     }
 
-    fn to_json(&self) -> Result<String> {
+    fn to_json(&self) -> Result<String, Error> {
         Ok(serde_json::to_string(&self).unwrap())
     }
 
-    fn summary(&self) -> Result<String> {
+    fn summary(&self) -> Result<String, Error> {
         let s = format!("fragment_duration={}", self.fragment_duration);
         Ok(s)
     }
 }
 
 impl BlockReader for MehdBox {
-    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self> {
+    fn read_block<'a>(reader: &mut impl Reader<'a>) -> Result<Self, Error> {
         let (version, flags) = read_box_header_ext(reader);
 
         let fragment_duration = if version == 1 {
@@ -54,7 +54,7 @@ impl BlockReader for MehdBox {
         } else if version == 0 {
             reader.get_u32() as u64
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         };
 
         Ok(MehdBox {
@@ -70,7 +70,7 @@ impl BlockReader for MehdBox {
 }
 
 impl<W: Write> WriteBox<&mut W> for MehdBox {
-    fn write_box(&self, writer: &mut W) -> Result<u64> {
+    fn write_box(&self, writer: &mut W) -> Result<u64, Error> {
         let size = self.box_size();
         BoxHeader::new(Self::TYPE, size).write(writer)?;
 
@@ -81,7 +81,7 @@ impl<W: Write> WriteBox<&mut W> for MehdBox {
         } else if self.version == 0 {
             writer.write_u32::<BigEndian>(self.fragment_duration as u32)?;
         } else {
-            return Err(BoxError::InvalidData("version must be 0 or 1"));
+            return Err(Error::InvalidData("version must be 0 or 1"));
         }
 
         Ok(size)

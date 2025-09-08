@@ -256,8 +256,8 @@ pub trait Mp4Box: Sized {
     const TYPE: BoxType;
 
     fn box_size(&self) -> u64;
-    fn to_json(&self) -> Result<String>;
-    fn summary(&self) -> Result<String>;
+    fn to_json(&self) -> Result<String, Error>;
+    fn summary(&self) -> Result<String, Error>;
 }
 
 pub struct BoxReader<'a, R: Reader<'a>> {
@@ -268,7 +268,7 @@ pub struct BoxReader<'a, R: Reader<'a>> {
 
 impl<'a, R: Reader<'a>> BoxReader<'a, R> {
     #[inline]
-    pub fn try_read<T: Mp4Box + BlockReader>(&mut self) -> Result<Option<T>> {
+    pub fn try_read<T: Mp4Box + BlockReader>(&mut self) -> Result<Option<T>, Error> {
         if T::TYPE == self.kind {
             Ok(Some(T::read_block(&mut self.inner)?))
         } else {
@@ -277,17 +277,17 @@ impl<'a, R: Reader<'a>> BoxReader<'a, R> {
     }
 
     #[inline]
-    pub fn read<T: Mp4Box + BlockReader>(&mut self) -> Result<T> {
+    pub fn read<T: Mp4Box + BlockReader>(&mut self) -> Result<T, Error> {
         if T::TYPE == self.kind {
             T::read_block(&mut self.inner)
         } else {
-            Err(BoxError::BoxNotFound(T::TYPE))
+            Err(Error::BoxNotFound(T::TYPE))
         }
     }
 }
 
 pub trait Reader<'a> {
-    fn take(&mut self, size: usize) -> Result<impl Reader<'a> + '_>;
+    fn take(&mut self, size: usize) -> Result<impl Reader<'a> + '_, Error>;
     fn remaining(&self) -> usize;
     fn skip(&mut self, size: usize);
 
@@ -308,104 +308,104 @@ pub trait Reader<'a> {
     fn get_i64(&mut self) -> i64;
 
     #[inline]
-    fn try_get_u8(&mut self) -> Result<u8> {
+    fn try_get_u8(&mut self) -> Result<u8, Error> {
         if self.remaining() < 1 {
-            Err(BoxError::InvalidData("expected at least 1 byte more"))
+            Err(Error::InvalidData("expected at least 1 byte more"))
         } else {
             Ok(self.get_u8())
         }
     }
     #[inline]
-    fn try_get_u16(&mut self) -> Result<u16> {
+    fn try_get_u16(&mut self) -> Result<u16, Error> {
         if self.remaining() < 2 {
-            Err(BoxError::InvalidData("expected at least 2 byte more"))
+            Err(Error::InvalidData("expected at least 2 byte more"))
         } else {
             Ok(self.get_u16())
         }
     }
     #[inline]
-    fn try_get_u24(&mut self) -> Result<u32> {
+    fn try_get_u24(&mut self) -> Result<u32, Error> {
         if self.remaining() < 3 {
-            Err(BoxError::InvalidData("expected at least 3 byte more"))
+            Err(Error::InvalidData("expected at least 3 byte more"))
         } else {
             Ok(self.get_u24())
         }
     }
     #[inline]
-    fn try_get_u32(&mut self) -> Result<u32> {
+    fn try_get_u32(&mut self) -> Result<u32, Error> {
         if self.remaining() < 4 {
-            Err(BoxError::InvalidData("expected at least 4 byte more"))
+            Err(Error::InvalidData("expected at least 4 byte more"))
         } else {
             Ok(self.get_u32())
         }
     }
     #[inline]
-    fn try_get_u48(&mut self) -> Result<u64> {
+    fn try_get_u48(&mut self) -> Result<u64, Error> {
         if self.remaining() < 6 {
-            Err(BoxError::InvalidData("expected at least 6 byte more"))
+            Err(Error::InvalidData("expected at least 6 byte more"))
         } else {
             Ok(self.get_u48())
         }
     }
     #[inline]
-    fn try_get_u64(&mut self) -> Result<u64> {
+    fn try_get_u64(&mut self) -> Result<u64, Error> {
         if self.remaining() < 8 {
-            Err(BoxError::InvalidData("expected at least 8 byte more"))
+            Err(Error::InvalidData("expected at least 8 byte more"))
         } else {
             Ok(self.get_u64())
         }
     }
 
     #[inline]
-    fn try_get_i8(&mut self) -> Result<i8> {
+    fn try_get_i8(&mut self) -> Result<i8, Error> {
         if self.remaining() < 1 {
-            Err(BoxError::InvalidData("expected at least 1 byte more"))
+            Err(Error::InvalidData("expected at least 1 byte more"))
         } else {
             Ok(self.get_i8())
         }
     }
     #[inline]
-    fn try_get_i16(&mut self) -> Result<i16> {
+    fn try_get_i16(&mut self) -> Result<i16, Error> {
         if self.remaining() < 2 {
-            Err(BoxError::InvalidData("expected at least 2 byte more"))
+            Err(Error::InvalidData("expected at least 2 byte more"))
         } else {
             Ok(self.get_i16())
         }
     }
     #[inline]
-    fn try_get_i24(&mut self) -> Result<i32> {
+    fn try_get_i24(&mut self) -> Result<i32, Error> {
         if self.remaining() < 3 {
-            Err(BoxError::InvalidData("expected at least 3 byte more"))
+            Err(Error::InvalidData("expected at least 3 byte more"))
         } else {
             Ok(self.get_i24())
         }
     }
     #[inline]
-    fn try_get_i32(&mut self) -> Result<i32> {
+    fn try_get_i32(&mut self) -> Result<i32, Error> {
         if self.remaining() < 4 {
-            Err(BoxError::InvalidData("expected at least 4 byte more"))
+            Err(Error::InvalidData("expected at least 4 byte more"))
         } else {
             Ok(self.get_i32())
         }
     }
     #[inline]
-    fn try_get_i48(&mut self) -> Result<i64> {
+    fn try_get_i48(&mut self) -> Result<i64, Error> {
         if self.remaining() < 6 {
-            Err(BoxError::InvalidData("expected at least 6 byte more"))
+            Err(Error::InvalidData("expected at least 6 byte more"))
         } else {
             Ok(self.get_i48())
         }
     }
     #[inline]
-    fn try_get_i64(&mut self) -> Result<i64> {
+    fn try_get_i64(&mut self) -> Result<i64, Error> {
         if self.remaining() < 8 {
-            Err(BoxError::InvalidData("expected at least 8 byte more"))
+            Err(Error::InvalidData("expected at least 8 byte more"))
         } else {
             Ok(self.get_i64())
         }
     }
     fn get_null_terminated_string(&mut self) -> String;
-    fn collect(&mut self, size: usize) -> Result<Vec<u8>> {
+    fn collect(&mut self, size: usize) -> Result<Vec<u8>, Error> {
         let mut buf = vec![0; size];
         self.copy_to_slice(&mut buf)?;
 
@@ -417,17 +417,17 @@ pub trait Reader<'a> {
         self.collect(self.remaining()).unwrap()
     }
 
-    fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<()>;
-    fn get_box(&mut self) -> Result<Option<BoxReader<'a, impl Reader<'a> + '_>>>;
+    fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<(), Error>;
+    fn get_box(&mut self) -> Result<Option<BoxReader<'a, impl Reader<'a> + '_>>, Error>;
 
-    fn find_box<B: Mp4Box + BlockReader>(&mut self) -> Result<B> {
+    fn find_box<B: Mp4Box + BlockReader>(&mut self) -> Result<B, Error> {
         self.try_find_box()
-            .and_then(|x| x.ok_or_else(|| BoxError::InvalidData("expected box")))
+            .and_then(|x| x.ok_or(Error::InvalidData("expected box")))
     }
 
     fn try_find_box2<A: Mp4Box + BlockReader, B: Mp4Box + BlockReader>(
         &mut self,
-    ) -> Result<(Option<A>, Option<B>)> {
+    ) -> Result<(Option<A>, Option<B>), Error> {
         let mut a = None;
         let mut b = None;
 
@@ -452,7 +452,7 @@ pub trait Reader<'a> {
         Ok((a, b))
     }
 
-    fn try_find_box3<A, B, C>(&mut self) -> Result<(Option<A>, Option<B>, Option<C>)>
+    fn try_find_box3<A, B, C>(&mut self) -> Result<(Option<A>, Option<B>, Option<C>), Error>
     where
         A: Mp4Box + BlockReader,
         B: Mp4Box + BlockReader,
@@ -490,7 +490,7 @@ pub trait Reader<'a> {
     }
 
     #[inline]
-    fn find_box3<A, B, C>(&mut self) -> Result<(A, B, C)>
+    fn find_box3<A, B, C>(&mut self) -> Result<(A, B, C), Error>
     where
         A: Mp4Box + BlockReader,
         B: Mp4Box + BlockReader,
@@ -499,21 +499,23 @@ pub trait Reader<'a> {
         let (a, b, c) = self.try_find_box3()?;
 
         let Some(a) = a else {
-            return Err(BoxError::BoxNotFound(A::TYPE));
+            return Err(Error::BoxNotFound(A::TYPE));
         };
 
         let Some(b) = b else {
-            return Err(BoxError::BoxNotFound(B::TYPE));
+            return Err(Error::BoxNotFound(B::TYPE));
         };
 
         let Some(c) = c else {
-            return Err(BoxError::BoxNotFound(C::TYPE));
+            return Err(Error::BoxNotFound(C::TYPE));
         };
 
         Ok((a, b, c))
     }
 
-    fn try_find_box4<A, B, C, D>(&mut self) -> Result<(Option<A>, Option<B>, Option<C>, Option<D>)>
+    fn try_find_box4<A, B, C, D>(
+        &mut self,
+    ) -> Result<(Option<A>, Option<B>, Option<C>, Option<D>), Error>
     where
         A: Mp4Box + BlockReader,
         B: Mp4Box + BlockReader,
@@ -561,7 +563,7 @@ pub trait Reader<'a> {
     }
 
     #[inline]
-    fn try_find_box<B: Mp4Box + BlockReader>(&mut self) -> Result<Option<B>> {
+    fn try_find_box<B: Mp4Box + BlockReader>(&mut self) -> Result<Option<B>, Error> {
         while let Some(mut bx) = self.get_box()? {
             if let Some(inner) = bx.try_read::<B>()? {
                 return Ok(Some(inner));
@@ -576,9 +578,9 @@ pub trait Reader<'a> {
 
 impl<'a> Reader<'a> for &'a [u8] {
     #[inline]
-    fn take(&mut self, size: usize) -> Result<impl Reader<'a> + '_> {
+    fn take(&mut self, size: usize) -> Result<impl Reader<'a> + '_, Error> {
         if self.len() < size {
-            return Err(BoxError::InvalidData("no bytes left"));
+            return Err(Error::InvalidData("no bytes left"));
         }
 
         let buff = &(*self)[0..size];
@@ -666,9 +668,9 @@ impl<'a> Reader<'a> for &'a [u8] {
     }
 
     #[inline]
-    fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<()> {
+    fn copy_to_slice(&mut self, slice: &mut [u8]) -> Result<(), Error> {
         if self.len() < slice.len() {
-            return Err(BoxError::InvalidData("expected more bytes"));
+            return Err(Error::InvalidData("expected more bytes"));
         }
 
         Buf::copy_to_slice(self, slice);
@@ -698,7 +700,7 @@ impl<'a> Reader<'a> for &'a [u8] {
     }
 
     #[inline]
-    fn get_box(&mut self) -> Result<Option<BoxReader<'a, impl Reader<'a> + '_>>> {
+    fn get_box(&mut self) -> Result<Option<BoxReader<'a, impl Reader<'a> + '_>>, Error> {
         let mut offset = 0;
         let Some(BoxHeader { kind, size }) = BoxHeader::read_sync(self, &mut offset)? else {
             return Ok(None);
@@ -713,12 +715,12 @@ impl<'a> Reader<'a> for &'a [u8] {
 }
 
 pub trait BlockReader: Sized {
-    fn read_block<'a>(block: &mut impl Reader<'a>) -> Result<Self>;
+    fn read_block<'a>(block: &mut impl Reader<'a>) -> Result<Self, Error>;
     fn size_hint() -> usize;
 }
 
 pub trait WriteBox<T>: Sized {
-    fn write_box(&self, _: T) -> Result<u64>;
+    fn write_box(&self, _: T) -> Result<u64, Error>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -732,7 +734,10 @@ impl BoxHeader {
         Self { kind: name, size }
     }
 
-    pub fn read_sync<'a>(reader: &mut impl Reader<'a>, offset: &mut u64) -> Result<Option<Self>> {
+    pub fn read_sync<'a>(
+        reader: &mut impl Reader<'a>,
+        offset: &mut u64,
+    ) -> Result<Option<Self>, Error> {
         if reader.remaining() < 8 {
             return Ok(None);
         }
@@ -745,7 +750,7 @@ impl BoxHeader {
         // Get largesize if size is 1
         let size = if sz == 1 {
             if reader.remaining() < 8 {
-                return Err(BoxError::InvalidData("expected 8 bytes more"));
+                return Err(Error::InvalidData("expected 8 bytes more"));
             }
 
             *offset += 8;
@@ -756,7 +761,7 @@ impl BoxHeader {
             // of 0, incorrectly indicating that the box data extends to the end of the stream.
             match largesize {
                 0 => 0,
-                1..=15 => return Err(BoxError::InvalidData("64-bit box size too small")),
+                1..=15 => return Err(Error::InvalidData("64-bit box size too small")),
                 16..=u64::MAX => largesize - 8,
             }
         } else {
@@ -780,7 +785,7 @@ impl BoxHeader {
     pub async fn read<R: AsyncRead + Unpin>(
         reader: &mut R,
         offset: &mut u64,
-    ) -> Result<Option<Self>> {
+    ) -> Result<Option<Self>, Error> {
         // Create and read to buf.
         let mut buf = [0u8; 8]; // 8 bytes for box header.
         match reader.read_exact(&mut buf).await {
@@ -818,7 +823,7 @@ impl BoxHeader {
             // of 0, incorrectly indicating that the box data extends to the end of the stream.
             match largesize {
                 0 => 0,
-                1..=15 => return Err(BoxError::InvalidData("64-bit box size too small")),
+                1..=15 => return Err(Error::InvalidData("64-bit box size too small")),
                 16..=u64::MAX => largesize - 8,
             }
         } else {
@@ -838,7 +843,7 @@ impl BoxHeader {
         }))
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> Result<u64> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> Result<u64, Error> {
         if self.size > u32::MAX as u64 {
             writer.write_u32::<BigEndian>(1)?;
             writer.write_u32::<BigEndian>(self.kind.into())?;
@@ -857,13 +862,13 @@ pub fn read_box_header_ext<'a, R: Reader<'a>>(reader: &mut R) -> (u8, u32) {
     (reader.get_u8(), reader.get_u24())
 }
 
-pub fn write_box_header_ext<W: Write>(w: &mut W, v: u8, f: u32) -> Result<u64> {
+pub fn write_box_header_ext<W: Write>(w: &mut W, v: u8, f: u32) -> Result<u64, Error> {
     w.write_u8(v)?;
     w.write_u24::<BigEndian>(f)?;
     Ok(4)
 }
 
-pub fn write_zeros<W: Write>(writer: &mut W, size: u64) -> Result<()> {
+pub fn write_zeros<W: Write>(writer: &mut W, size: u64) -> Result<(), Error> {
     for _ in 0..size {
         writer.write_u8(0)?;
     }
@@ -926,7 +931,7 @@ mod tests {
             &mut 0,
         )
         .await;
-        assert!(matches!(error, Err(BoxError::InvalidData(_))));
+        assert!(matches!(error, Err(Error::InvalidData(_))));
     }
 
     #[tokio::test]
@@ -936,7 +941,7 @@ mod tests {
             &mut 0,
         )
         .await;
-        assert!(matches!(error, Err(BoxError::InvalidData(_))));
+        assert!(matches!(error, Err(Error::InvalidData(_))));
     }
 
     #[tokio::test]
@@ -946,7 +951,7 @@ mod tests {
             &mut 0,
         )
         .await;
-        assert!(matches!(error, Err(BoxError::InvalidData(_))));
+        assert!(matches!(error, Err(Error::InvalidData(_))));
     }
 
     #[tokio::test]
